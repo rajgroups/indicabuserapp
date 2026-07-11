@@ -1,0 +1,130 @@
+
+indicab/
+│
+├── android/
+├── ios/
+├── web/
+├── macos/
+├── linux/
+├── windows/
+│
+├── assets/
+│   ├── images/
+│   │   ├── logo/
+│   │   ├── icons/
+│   │   ├── vehicles/
+│   │   └── banners/
+│   ├── animations/          # Lottie JSON
+│   ├── fonts/
+│   └── map_styles/
+│
+├── lib/
+│   │
+│   ├── main.dart
+│   ├── app.dart             # Root widget
+│   │
+│   ├── core/                # 🔥 App-wide core layer
+│   │   ├── constants/
+│   │   │   ├── colors.dart
+│   │   │   ├── strings.dart
+│   │   │   ├── icons.dart
+│   │   │   └── keys.dart
+│   │   │
+│   │   ├── theme/
+│   │   │   ├── theme.dart
+│   │   │   └── styles.dart
+│   │   │
+│   │   ├── routes/
+│   │   │   ├── routes.dart
+│   │   │   └── route_names.dart
+│   │   │
+│   │   ├── network/
+│   │   │   ├── client.dart
+│   │   │   ├── endpoints.dart
+│   │   │   └── network_exceptions.dart
+│   │   │
+│   │   ├── services/
+│   │   │   ├── location_service.dart
+│   │   │   ├── socket_service.dart
+│   │   │   ├── notification_service.dart
+│   │   │   └── storage_service.dart
+│   │   │
+│   │   ├── utils/
+│   │   │   ├── logger.dart
+│   │   │   ├── validators.dart
+│   │   │   ├── permissions.dart
+│   │   │   └── helpers.dart
+│   │   │
+│   │   └── bindings/
+│   │       └── initial_binding.dart
+│   │
+│   ├── features/            # 🚀 Feature-first architecture
+│   │
+│   │   ├── auth/
+│   │   │   ├── auth_controller.dart
+│   │   │   ├── auth_repository.dart
+│   │   │   ├── auth_service.dart
+│   │   │   ├── models/
+│   │   │   │   └── user_model.dart
+│   │   │   └── ui/
+│   │   │       ├── login_screen.dart
+│   │   │       ├── otp_screen.dart
+│   │   │       └── signup_screen.dart
+│   │
+│   │   ├── home/
+│   │   │   ├── home_controller.dart
+│   │   │   ├── models/
+│   │   │   └── ui/
+│   │   │       └── home_screen.dart
+│   │
+│   │   ├── booking/
+│   │   │   ├── booking_controller.dart
+│   │   │   ├── models/
+│   │   │   │   ├── ride_model.dart
+│   │   │   │   └── vehicle_model.dart
+│   │   │   └── ui/
+│   │   │       ├── select_ride_screen.dart
+│   │   │       ├── confirm_ride_screen.dart
+│   │   │       └── tracking_screen.dart
+│   │
+│   │   ├── driver/
+│   │   │   ├── driver_controller.dart
+│   │   │   ├── models/
+│   │   │   └── ui/
+│   │   │       ├── driver_home_screen.dart
+│   │   │       ├── ride_request_screen.dart
+│   │   │       └── earnings_screen.dart
+│   │
+│   │   ├── wallet/
+│   │   │   ├── wallet_controller.dart
+│   │   │   └── ui/
+│   │   │       └── wallet_screen.dart
+│   │
+│   │   ├── profile/
+│   │   │   ├── profile_controller.dart
+│   │   │   └── ui/
+│   │   │       └── profile_screen.dart
+│   │
+│   │   └── ride_history/
+│   │       ├── history_controller.dart
+│   │       └── ui/
+│   │           └── history_screen.dart
+│   │
+│   ├── shared/              # ♻️ Reusable UI & logic
+│   │   ├── widgets/
+│   │   │   ├── button.dart
+│   │   │   ├── textfield.dart
+│   │   │   ├── loader.dart
+│   │   │   └── empty_state.dart
+│   │   │
+│   │   └── models/
+│   │       └── api_response.dart
+│   │
+│   └── localization/
+│       ├── en.dart
+│       ├── ta.dart
+│       └── localization_service.dart
+│
+├── pubspec.yaml
+├── analysis_options.yaml
+└── README.md.
