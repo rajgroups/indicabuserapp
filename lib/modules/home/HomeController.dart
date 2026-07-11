@@ -50,7 +50,7 @@ class HomeController extends GetxController {
   final TextEditingController originController = TextEditingController();
   final TextEditingController destController = TextEditingController();
 
-  SocketService socketService = SocketService();
+  final SocketService _socketService = Get.find<SocketService>();
 
   @override
   void onClose() {
@@ -71,7 +71,7 @@ class HomeController extends GetxController {
     final token = await _readStoredToken();
 
     if (token != null) {
-      socketService.connect(token);
+      await _socketService.connect(token);
     }
   }
 

@@ -19,7 +19,7 @@ class BookingController extends GetxController {
 
   final BookingRepository _repository;
   final HomeController _homeController = Get.find<HomeController>();
-  final SocketService _socketService = SocketService();
+  final SocketService _socketService = Get.find<SocketService>();
 
   final RxBool isSubmitting = false.obs;
   final RxString selectedMode = ''.obs;

@@ -32,7 +32,7 @@ class AuthService {
     _client.setTokens(authToken);
 
     // Connect socket with fresh token
-    Get.find<SocketService>().connect(authToken);
+    await Get.find<SocketService>().connect(authToken);
 
     return response;
   }
