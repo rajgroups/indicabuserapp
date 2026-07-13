@@ -1,11 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/core/services/SocketService.dart';
 
-class RideSummaryScreen extends StatelessWidget {
-  const RideSummaryScreen({super.key});
+class RideSummaryScreen extends StatefulWidget {
+  const RideSummaryScreen({super.key, this.bookingNo, this.bookingData});
+
+  final String? bookingNo;
+  final BookingDataModel? bookingData;
+
+  @override
+  State<RideSummaryScreen> createState() => _RideSummaryScreenState();
+}
+
+class _RideSummaryScreenState extends State<RideSummaryScreen> {
+  final SocketService _socketService = Get.find<SocketService>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _socketService.disconnect();
+    });
+  }
+
+  String get _bookingLabel =>
+      widget.bookingData?.bookingNo ?? widget.bookingNo ?? 'Ride complete';
+
+  String get _locationLabel =>
+      widget.bookingData?.dropAddress ??
+      widget.bookingData?.pickupAddress ??
+      'Thanks for riding with IndicaB';
+
+  String get _fareLabel {
+    final amount = widget.bookingData?.estimatedAmount;
+    if (amount == null) {
+      return '₹245.00';
+    }
+
+    return '₹${amount.toStringAsFixed(2)}';
+  }
+
+  String get _driverLabel =>
+      widget.bookingData?.driverName?.trim().isNotEmpty == true
+      ? widget.bookingData!.driverName!.trim()
+      : 'Driver';
 
   @override
   Widget build(BuildContext context) {
@@ -56,14 +97,25 @@ class RideSummaryScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'MG Road, Bangalore',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            Text(
+              'Booking #$_bookingLabel',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
             ),
-
+            const SizedBox(height: 4),
+            Text(
+              _locationLabel,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 40),
-
-            // Fare Details Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -89,9 +141,9 @@ class RideSummaryScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    '₹245.00',
-                    style: TextStyle(
+                  Text(
+                    _fareLabel,
+                    style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary,
@@ -131,10 +183,7 @@ class RideSummaryScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 40),
-
-            // Rating Section
             const Text(
               'How was your ride?',
               style: TextStyle(
@@ -144,6 +193,15 @@ class RideSummaryScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            Text(
+              _driverLabel,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(

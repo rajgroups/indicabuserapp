@@ -1,11 +1,8 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
-import 'package:indicab/core/routes/names.dart';
-import 'package:indicab/core/services/SocketService.dart';
 
 class FindingDriverScreen extends StatefulWidget {
   const FindingDriverScreen({super.key, this.vehicleType});
@@ -19,8 +16,6 @@ class FindingDriverScreen extends StatefulWidget {
 class _FindingDriverScreenState extends State<FindingDriverScreen>
     with TickerProviderStateMixin {
   String _statusText = 'Finding your ride...';
-
-  final SocketService _socketService = Get.find<SocketService>();
   late final AnimationController _pulseController;
   late final AnimationController _routeController;
   late final AnimationController _searchController;
@@ -40,26 +35,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
       vsync: this,
       duration: const Duration(milliseconds: 3200),
     )..repeat();
-
-    // Listen for booking status updates
-    _socketService.on('booking_status', _handleBookingStatus);
-  }
-
-  void _handleBookingStatus(dynamic data) {
-    if (data is! Map<String, dynamic>) return;
-
-    final booking = data['booking'] as Map<String, dynamic>?;
-    if (booking == null) return;
-
-    final status = booking['status'] as String?;
-    final bookingNo = booking['booking_no'] as String?;
-
-    if (status == 'accepted' && bookingNo != null) {
-      // A driver has been found, navigate to the ride screen.
-      Get.offNamed(RouteNames.rideOtp, arguments: {'booking_no': bookingNo});
-    } else {
-      // You can handle other statuses here, like 'cancelled' or 'no_drivers_found'.
-    }
   }
 
   String get _vehicleTypeLabel {
@@ -87,7 +62,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     _pulseController.dispose();
     _routeController.dispose();
     _searchController.dispose();
-    _socketService.off('booking_status', _handleBookingStatus);
     super.dispose();
   }
 

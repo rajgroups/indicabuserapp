@@ -4,6 +4,7 @@ import 'package:indicab/core/bindings/HomeBinding.dart';
 import 'package:indicab/layout/partials/menu.dart';
 import 'package:indicab/modules/auth/ui/login.dart';
 import 'package:indicab/modules/auth/ui/otp.dart';
+import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/modules/history/ui/ride_details.dart';
 import 'package:indicab/modules/history/ui/ride_history.dart';
 import 'package:indicab/modules/home/ui/Home.dart';
@@ -51,12 +52,32 @@ class AppRoutes {
         bookingNo: Get.arguments is Map<String, dynamic>
             ? Get.arguments['booking_no']?.toString()
             : null,
+        bookingData: Get.arguments is Map<String, dynamic>
+            ? Get.arguments['booking_data'] as BookingDataModel?
+            : null,
       ),
     ),
-    GetPage(name: RouteNames.activeRide, page: () => const ActiveRideScreen()),
+    GetPage(
+      name: RouteNames.activeRide,
+      page: () => ActiveRideScreen(
+        bookingNo: Get.arguments is Map<String, dynamic>
+            ? Get.arguments['booking_no']?.toString()
+            : null,
+        bookingData: Get.arguments is Map<String, dynamic>
+            ? Get.arguments['booking_data'] as BookingDataModel?
+            : null,
+      ),
+    ),
     GetPage(
       name: RouteNames.rideSummary,
-      page: () => const RideSummaryScreen(),
+      page: () => RideSummaryScreen(
+        bookingNo: Get.arguments is Map<String, dynamic>
+            ? Get.arguments['booking_no']?.toString()
+            : null,
+        bookingData: Get.arguments is Map<String, dynamic>
+            ? Get.arguments['booking_data'] as BookingDataModel?
+            : null,
+      ),
     ),
     GetPage(
       name: RouteNames.rideHistory,

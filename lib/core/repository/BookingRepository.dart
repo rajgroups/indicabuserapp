@@ -40,4 +40,15 @@ class BookingRepository {
 
     throw Exception('Unexpected booking response format.');
   }
+
+  Future<BookingResponseModel> getActiveRide() async {
+    final response = await _apiClient.get(ApiEndpoints.bookingActive);
+
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) {
+      return BookingResponseModel.fromJson(payload);
+    }
+
+    throw Exception('Unexpected booking response format.');
+  }
 }

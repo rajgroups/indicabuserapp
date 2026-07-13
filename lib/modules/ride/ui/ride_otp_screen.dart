@@ -1,12 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/core/routes/names.dart';
-import 'package:indicab/core/services/SocketService.dart';
-import 'package:indicab/core/models/Booking.dart';
 import 'package:indicab/core/network/client.dart';
 import 'package:indicab/core/repository/BookingRepository.dart';
 import 'package:indicab/core/network/network_exceptions.dart';
@@ -15,6 +12,7 @@ class RideOtpScreen extends StatefulWidget {
   const RideOtpScreen({
     super.key,
     this.bookingNo,
+    this.bookingData,
     this.rideOtp,
     this.driverName,
     this.vehicleName,
@@ -22,6 +20,7 @@ class RideOtpScreen extends StatefulWidget {
   });
 
   final String? bookingNo;
+  final BookingDataModel? bookingData;
   final String? rideOtp;
   final String? driverName;
   final String? vehicleName;
@@ -33,12 +32,16 @@ class RideOtpScreen extends StatefulWidget {
 
 class _RideOtpScreenState extends State<RideOtpScreen> {
   bool _isLoading = false;
+  BookingDataModel? _bookingData;
 
   @override
   void initState() {
     super.initState();
+    _bookingData = widget.bookingData;
     if (widget.bookingNo != null && widget.bookingNo!.isNotEmpty) {
-      _fetchBookingDetails();
+      if (_bookingData == null) {
+        _fetchBookingDetails();
+      }
     }
   }
 
@@ -49,10 +52,15 @@ class _RideOtpScreenState extends State<RideOtpScreen> {
 
     final BookingRepository bookingRepository = BookingRepository(ApiClient());
     try {
-      final response = await bookingRepository.getBooking(widget.bookingNo!, includeOtp: true);
+      final response = await bookingRepository.getBooking(
+        widget.bookingNo!,
+        includeOtp: true,
+      );
       final bookingData = response.data;
       if (bookingData != null && mounted) {
-        final booking = Booking.fromBookingDataModel(bookingData);
+        setState(() {
+          _bookingData = bookingData;
+        });
       }
     } catch (e) {
       if (e is NetworkException && e.statusCode == 401) {
@@ -77,6 +85,14 @@ class _RideOtpScreenState extends State<RideOtpScreen> {
     super.dispose();
   }
 
+  String _displayName(String? fallback) {
+    final value = fallback?.trim();
+    if (value == null || value.isEmpty) {
+      return 'Waiting for driver details';
+    }
+    return value;
+  }
+
   String _otpLabel(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Waiting for OTP from the server';
@@ -99,7 +115,17 @@ class _RideOtpScreenState extends State<RideOtpScreen> {
   }
 
   Future<void> _copyOtp() async {
-  
+    final otp = widget.rideOtp ?? _bookingData?.startOtp;
+    if (otp == null || otp.isEmpty) {
+      Get.snackbar(
+        'Ride OTP',
+        'OTP is not available yet',
+        backgroundColor: AppColors.surface,
+      );
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: otp));
     Get.snackbar(
       'Ride OTP',
       'OTP copied to clipboard',
@@ -113,14 +139,11 @@ class _RideOtpScreenState extends State<RideOtpScreen> {
         title: const Text('Cancel Ride'),
         content: const Text('Are you sure you want to cancel this ride?'),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('No'),
-          ),
+          TextButton(onPressed: () => Get.back(), child: const Text('No')),
           TextButton(
             onPressed: () {
               Get.back(); // Close dialog
-              
+
               Get.offAllNamed(RouteNames.home); // Go back to home
             },
             child: const Text('Yes, Cancel'),
@@ -142,13 +165,11 @@ class _RideOtpScreenState extends State<RideOtpScreen> {
           title: const Text('Ride OTP'),
           centerTitle: true,
         ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    return Obx(() => Scaffold(
+    return Scaffold(
       backgroundColor: AppColors.authBackground,
       appBar: AppBar(
         backgroundColor: AppColors.surface,
@@ -242,7 +263,7 @@ class _RideOtpScreenState extends State<RideOtpScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          _otpLabel('2'),
+                          _otpLabel(widget.rideOtp ?? _bookingData?.startOtp),
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 28,
@@ -257,15 +278,31 @@ class _RideOtpScreenState extends State<RideOtpScreen> {
                   const SizedBox(height: 20),
                   _MetaTile(
                     label: 'Driver',
-                    value:  'Waiting for driver details',
+                    value: _displayName(
+                      widget.driverName ?? _bookingData?.driverName,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _MetaTile(
                     label: 'Vehicle',
-                    value: _vehicleLabel('ti','233'),
+                    value: _vehicleLabel(
+                      widget.vehicleName ?? _bookingData?.vehicleName,
+                      widget.vehicleNumber ?? _bookingData?.vehicleNumber,
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  _MetaTile(label: 'Status', value: 'Waiting for ride start'),
+                  _MetaTile(
+                    label: 'Status',
+                    value: _bookingData?.status == null
+                        ? 'Waiting for ride start'
+                        : _bookingData!.status == 'accepted'
+                            ? 'Waiting for ride start'
+                            : _bookingData!.status == 'started'
+                                ? 'Ride started'
+                                : _bookingData!.status == 'completed'
+                                    ? 'Ride completed'
+                                    : _bookingData!.status!,
+                  ),
                 ],
               ),
             ),
@@ -311,7 +348,7 @@ class _RideOtpScreenState extends State<RideOtpScreen> {
           ],
         ),
       ),
-    ));
+    );
   }
 }
 

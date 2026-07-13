@@ -1,30 +1,63 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/core/routes/names.dart';
-import 'package:indicab/core/services/SocketService.dart';
 import 'package:indicab/modules/ride/ui/track_ride_screen.dart';
 import 'package:indicab/modules/ride/ui/sos_screen.dart';
 
 class ActiveRideScreen extends StatefulWidget {
-  const ActiveRideScreen({super.key});
+  const ActiveRideScreen({super.key, this.bookingNo, this.bookingData});
+
+  final String? bookingNo;
+  final BookingDataModel? bookingData;
 
   @override
   State<ActiveRideScreen> createState() => _ActiveRideScreenState();
 }
 
 class _ActiveRideScreenState extends State<ActiveRideScreen> {
+  String get _bookingNoLabel =>
+      widget.bookingData?.bookingNo ?? widget.bookingNo ?? 'Ride in progress';
 
-  @override
-  void initState() {
-    super.initState();
+  String get _driverName =>
+      widget.bookingData?.driverName?.trim().isNotEmpty == true
+      ? widget.bookingData!.driverName!.trim()
+      : 'Driver';
+
+  String get _vehicleLabel {
+    final parts = <String>[
+      if (widget.bookingData?.vehicleName?.trim().isNotEmpty == true)
+        widget.bookingData!.vehicleName!.trim(),
+      if (widget.bookingData?.vehicleNumber?.trim().isNotEmpty == true)
+        widget.bookingData!.vehicleNumber!.trim(),
+    ];
+
+    if (parts.isEmpty) {
+      return 'Vehicle details pending';
+    }
+
+    return parts.join(' • ');
   }
 
-  @override
-  void dispose() {
-    super.dispose();
+  String get _pickupLabel =>
+      widget.bookingData?.pickupAddress ?? 'Waiting for live pickup location';
+
+  String get _dropLabel =>
+      widget.bookingData?.dropAddress ??
+      'Destination will be updated by socket event';
+
+  String get _statusLabel {
+    final status = widget.bookingData?.status?.trim();
+    if (status == null || status.isEmpty) {
+      return 'Ride in progress';
+    }
+
+    return switch (status) {
+      'started' => 'Ride in progress',
+      'completed' => 'Ride completed',
+      _ => status,
+    };
   }
 
   @override
@@ -100,8 +133,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                          
-                                'Ride in progress',
+                            'Ride #$_bookingNoLabel',
                             style: const TextStyle(
                               fontSize: 12,
                               color: AppColors.textSecondary,
@@ -110,8 +142,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Share OTP and enjoy the trip',
-                            style: TextStyle(
+                            _statusLabel,
+                            style: const TextStyle(
                               fontSize: 16,
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.w700,
@@ -209,7 +241,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'driver',
+                                    _driverName,
                                     style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,
@@ -238,26 +270,30 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                                 ],
                               ),
                             ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  '1212',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textPrimary,
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    _bookingNoLabel,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'swe',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _vehicleLabel,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -292,8 +328,15 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: ElevatedButton.icon(
-                                onPressed: () =>
-                                    Get.offNamed(RouteNames.rideSummary),
+                                onPressed: () => Get.offNamed(
+                                  RouteNames.rideSummary,
+                                  arguments: {
+                                    'booking_no':
+                                        widget.bookingNo ??
+                                        widget.bookingData?.bookingNo,
+                                    'booking_data': widget.bookingData,
+                                  },
+                                ),
                                 icon: const Icon(Icons.flag_rounded),
                                 label: const Text(
                                   'End Ride',
@@ -329,14 +372,13 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                         _RouteStep(
                           icon: Icons.my_location_rounded,
                           title: 'Pickup',
-                          subtitle: 'Waiting for live pickup location',
+                          subtitle: _pickupLabel,
                         ),
                         const SizedBox(height: 14),
                         _RouteStep(
                           icon: Icons.location_on_rounded,
                           title: 'Drop',
-                          subtitle:
-                              'Destination will be updated by socket event',
+                          subtitle: _dropLabel,
                         ),
                         const SizedBox(height: 28),
                         InkWell(

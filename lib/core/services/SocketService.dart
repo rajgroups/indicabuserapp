@@ -1,16 +1,23 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:indicab/core/models/booking_response.dart';
+import 'package:indicab/core/network/client.dart';
+import 'package:indicab/core/routes/names.dart';
+import 'package:indicab/core/repository/BookingRepository.dart';
 
 /// A map to hold event handlers.
 typedef EventCallback = void Function(dynamic data);
 
-class SocketService extends GetxService {
+class SocketService extends GetxService with WidgetsBindingObserver {
   WebSocket? _socket;
   String? _token;
   Timer? _reconnectTimer;
   Timer? _pingTimer;
+  bool _shouldReconnect = true;
+  final BookingRepository _bookingRepository = BookingRepository(ApiClient());
 
   /// Base URL for the WebSocket connection.
   final String _baseUrl = 'ws://10.46.210.83:9502';
@@ -22,7 +29,14 @@ class SocketService extends GetxService {
   final Map<String, List<EventCallback>> _eventListeners = {};
 
   @override
+  void onInit() {
+    super.onInit();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void onClose() {
+    WidgetsBinding.instance.removeObserver(this);
     disconnect();
     super.onClose();
   }
@@ -31,6 +45,7 @@ class SocketService extends GetxService {
   /// It stores the token for automatic reconnection.
   Future<void> connect(String token) async {
     _token = token;
+    _shouldReconnect = true;
     final url = '$_baseUrl?token=$_token';
 
     try {
@@ -56,11 +71,26 @@ class SocketService extends GetxService {
   /// Closes the WebSocket connection and stops any timers.
   void disconnect() {
     print('WebSocket: Disconnecting...');
+    _shouldReconnect = false;
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
     _socket?.close();
     _socket = null;
     isConnected.value = false;
+  }
+
+  void setToken(String token) {
+    _token = token;
+  }
+
+  bool get hasToken => _token != null && _token!.isNotEmpty;
+
+  Future<void> ensureConnected() async {
+    if (isConnected.value || !hasToken) {
+      return;
+    }
+
+    await connect(_token!);
   }
 
   /// Sends data to the server. The data is encoded as a JSON string.
@@ -117,7 +147,9 @@ class SocketService extends GetxService {
     print('WebSocket: Disconnected by server.');
     isConnected.value = false;
     _pingTimer?.cancel();
-    _tryReconnect();
+    if (_shouldReconnect) {
+      _tryReconnect();
+    }
   }
 
   /// Internal handler for any connection errors.
@@ -125,11 +157,16 @@ class SocketService extends GetxService {
     print('WebSocket: Socket Error: $error');
     isConnected.value = false;
     _pingTimer?.cancel();
-    _tryReconnect();
+    if (_shouldReconnect) {
+      _tryReconnect();
+    }
   }
 
   /// Attempts to reconnect to the server after a delay.
   void _tryReconnect() {
+    if (!_shouldReconnect) {
+      return;
+    }
     if (_reconnectTimer?.isActive ?? false) return;
 
     _reconnectTimer = Timer(const Duration(seconds: 5), () {
@@ -145,16 +182,18 @@ class SocketService extends GetxService {
   /// Routes events to internal handlers for global actions.
   void _routeEvent(String eventType, Map<String, dynamic> data) {
     switch (eventType) {
+      case 'connected':
+        _handleConnectedEvent();
+        break;
       case 'pong':
         _handlePong();
         break;
       case 'auth_error':
         _handleAuthError(data);
         break;
-      // Specific booking events are now handled by listeners,
-      // but you could add global handlers here if needed.
       case 'booking_request':
       case 'booking_status':
+        unawaited(_handleBookingEvent(eventType, data));
         break;
       default:
         print('WebSocket: Received unknown event type: $eventType');
@@ -169,6 +208,11 @@ class SocketService extends GetxService {
     });
   }
 
+  void _handleConnectedEvent() {
+    // The server acknowledges auth with a connected payload.
+    // No extra action is needed here beyond suppressing the unknown-event log.
+  }
+
   void _handleAuthError(Map<String, dynamic> data) {
     print('WebSocket: Authentication error: ${data['message']}');
     disconnect();
@@ -177,5 +221,61 @@ class SocketService extends GetxService {
 
   void _handlePong() {
     print('WebSocket: Pong received.');
+  }
+
+  Future<void> _handleBookingEvent(
+    String eventType,
+    Map<String, dynamic> data,
+  ) async {
+    if (eventType != 'booking_status') {
+      return;
+    }
+
+    final booking = data['booking'];
+    if (booking is! Map<String, dynamic>) {
+      return;
+    }
+
+    final status = booking['status']?.toString();
+    final bookingNo = booking['booking_no']?.toString();
+
+    if (bookingNo == null || bookingNo.isEmpty) {
+      return;
+    }
+
+    final bookingData = await _fetchBookingData(bookingNo);
+    final arguments = <String, dynamic>{
+      'booking_no': bookingNo,
+      if (bookingData != null) 'booking_data': bookingData,
+    };
+
+    if (status == 'accepted' && Get.currentRoute != RouteNames.rideOtp) {
+      Get.offAllNamed(RouteNames.rideOtp, arguments: arguments);
+      return;
+    }
+
+    if (status == 'started' && Get.currentRoute != RouteNames.activeRide) {
+      Get.offAllNamed(RouteNames.activeRide, arguments: arguments);
+      return;
+    }
+
+    if (status == 'completed' && Get.currentRoute != RouteNames.rideSummary) {
+      Get.offAllNamed(RouteNames.rideSummary, arguments: arguments);
+    }
+  }
+
+  Future<BookingDataModel?> _fetchBookingData(String bookingNo) async {
+    try {
+      final response = await _bookingRepository.getBooking(
+        bookingNo,
+        includeOtp: true,
+      );
+      return response.data;
+    } catch (error) {
+      print(
+        'WebSocket: Failed to fetch booking details for $bookingNo: $error',
+      );
+      return null;
+    }
   }
 }

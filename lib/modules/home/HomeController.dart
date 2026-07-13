@@ -1,4 +1,6 @@
 // import 'dart:nativewrappers/_internal/vm/lib/ffi_native_type_patch.dart';
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -6,20 +8,22 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/config/Config.dart';
 import 'package:indicab/core/constants/Keys.dart';
 import 'package:indicab/core/network/client.dart';
+import 'package:indicab/core/repository/BookingRepository.dart';
 import 'package:indicab/core/services/SecureStorageService.dart';
 import 'package:indicab/core/services/SocketService.dart';
 import 'package:indicab/core/services/StorageService.dart';
+import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/modules/home/HomeService.dart';
 import 'package:indicab/modules/home/models/VehicleModels.dart';
 import 'package:indicab/modules/home/models/VehicleTypeResponse.dart';
 
 class HomeController extends GetxController {
   HomeController();
-  
+
   final SecureStorageService _secureStorage = SecureStorageService();
   final StorageService _storage = StorageService();
-  final ApiClient _client = ApiClient();
-  
+  final BookingRepository _bookingRepository = BookingRepository(ApiClient());
+
   static const LatLng defaultPickup = LatLng(12.9756, 77.6050);
   static const CameraPosition initialCameraPosition = CameraPosition(
     target: defaultPickup,
@@ -35,7 +39,6 @@ class HomeController extends GetxController {
   final Rxn<VehicleOption> selectedVehicle = Rxn<VehicleOption>();
   final Rx<LatLng> pickupPoint = defaultPickup.obs;
   final RxString currentAddress = 'MG Road, Bengaluru'.obs;
-
 
   // Lat and Lng details
   Rxn<LatLng> pickuplocation = Rxn<LatLng>();
@@ -60,7 +63,7 @@ class HomeController extends GetxController {
   }
 
   @override
-  void onInit() async{
+  void onInit() async {
     super.onInit();
     _initialize();
   }
@@ -71,7 +74,8 @@ class HomeController extends GetxController {
     final token = await _readStoredToken();
 
     if (token != null) {
-      await _socketService.connect(token);
+      _socketService.setToken(token);
+      await _socketService.ensureConnected();
     }
   }
 
@@ -95,10 +99,7 @@ class HomeController extends GetxController {
   }
 
   Future<void> setPickup(dynamic place) async {
-    final latlng = LatLng(
-      double.parse(place.lat),
-      double.parse(place.lng),
-    );
+    final latlng = LatLng(double.parse(place.lat), double.parse(place.lng));
 
     pickupPoint.value = latlng;
     pickuplocation.value = latlng;
@@ -108,10 +109,7 @@ class HomeController extends GetxController {
   }
 
   Future<void> setDrop(dynamic place) async {
-    final latlng = LatLng(
-      double.parse(place.lat),
-      double.parse(place.lng),
-    );
+    final latlng = LatLng(double.parse(place.lat), double.parse(place.lng));
 
     droplocation.value = latlng;
     dropAddress.value = place.description ?? '';
@@ -208,14 +206,56 @@ class HomeController extends GetxController {
       'HomeController.onReady: mapsKey=${AppEnv.hasGoogleMapsApiKey}, '
       'placesKey=${AppEnv.hasGooglePlacesApiKey}',
     );
-    _loadHomePage();
+    unawaited(_bootstrapHome());
+  }
+
+  Future<void> _bootstrapHome() async {
+    await _loadHomePage();
+    await _checkActiveRide();
   }
 
   Future<void> _loadHomePage() async {
-    await Future.wait([
-      getVehicleType(),
-      refreshAddressFor(pickupPoint.value),
-    ]);
+    await Future.wait([getVehicleType(), refreshAddressFor(pickupPoint.value)]);
+  }
+
+  Future<void> _checkActiveRide() async {
+    try {
+      final token = await _readStoredToken();
+      if (token == null || token.isEmpty) {
+        return;
+      }
+
+      final response = await _bookingRepository.getActiveRide();
+      final booking = response.data;
+
+      if (booking == null) {
+        return;
+      }
+
+      await _socketService.ensureConnected();
+
+      final bookingArgs = <String, dynamic>{
+        'booking_no': booking.bookingNo,
+        'booking_data': booking,
+      };
+
+      if (booking.status == 'started') {
+        _redirectToRide(RouteNames.activeRide, bookingArgs);
+        return;
+      }
+
+      _redirectToRide(RouteNames.rideOtp, bookingArgs);
+    } catch (error) {
+      debugPrint('HomeController._checkActiveRide error: $error');
+    }
+  }
+
+  void _redirectToRide(String route, Map<String, dynamic> arguments) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (Get.currentRoute == RouteNames.home) {
+        Get.offAllNamed(route, arguments: arguments);
+      }
+    });
   }
 
   void onMapCreated(GoogleMapController controller) {
@@ -229,9 +269,7 @@ class HomeController extends GetxController {
     );
     pickupPoint.value = newPoint;
     if (_mapController != null) {
-      await _mapController!.animateCamera(
-        CameraUpdate.newLatLng(newPoint),
-      );
+      await _mapController!.animateCamera(CameraUpdate.newLatLng(newPoint));
     }
     await refreshAddressFor(newPoint);
   }
@@ -256,10 +294,9 @@ class HomeController extends GetxController {
 
       final results = response.data['results'] as List<dynamic>? ?? [];
       final firstResult = results.isNotEmpty ? results.first : null;
-      final formattedAddress =
-          firstResult is Map<String, dynamic>
-              ? firstResult['formatted_address'] as String?
-              : null;
+      final formattedAddress = firstResult is Map<String, dynamic>
+          ? firstResult['formatted_address'] as String?
+          : null;
 
       if (formattedAddress != null && formattedAddress.trim().isNotEmpty) {
         currentAddress.value = formattedAddress;
@@ -507,14 +544,8 @@ class HomeController extends GetxController {
     return Color(parsedColor);
   }
 
-  List<Color> _gradientFromApi(
-    List<String> values,
-    List<Color> fallback,
-  ) {
-    final colors = values
-        .map(_colorFromHex)
-        .whereType<Color>()
-        .toList();
+  List<Color> _gradientFromApi(List<String> values, List<Color> fallback) {
+    final colors = values.map(_colorFromHex).whereType<Color>().toList();
 
     return colors.length >= 2 ? colors : fallback;
   }

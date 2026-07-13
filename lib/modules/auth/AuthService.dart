@@ -31,8 +31,8 @@ class AuthService {
     /// SET TOKEN TO DIO
     _client.setTokens(authToken);
 
-    // Connect socket with fresh token
-    await Get.find<SocketService>().connect(authToken);
+    // Keep the token ready for active-ride or booking-driven socket connection.
+    Get.find<SocketService>().setToken(authToken);
 
     return response;
   }
@@ -46,6 +46,7 @@ class AuthService {
       await _storage.write(StorageKeys.token, authToken);
       await GetStorage().write(StorageKeys.token, authToken);
       _client.setTokens(authToken);
+      Get.find<SocketService>().setToken(authToken);
     }
 
     return response;

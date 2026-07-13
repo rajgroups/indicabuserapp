@@ -156,6 +156,7 @@ class BookingController extends GetxController {
       }
 
       if (bookingMode == 'instant') {
+        await _socketService.ensureConnected();
         Get.toNamed(
           RouteNames.findingDriver,
           arguments: {
@@ -208,9 +209,7 @@ class BookingController extends GetxController {
 
       Get.offNamed(
         RouteNames.rideOtp,
-        arguments: {
-          'booking_no': booking.bookingNo,
-        },
+        arguments: {'booking_no': booking.bookingNo, 'booking_data': booking},
       );
     } catch (error) {
       Helpers.close();
@@ -329,7 +328,6 @@ class BookingController extends GetxController {
               surface: AppColors.surface,
               onSurface: AppColors.textPrimary,
             ),
-            dialogBackgroundColor: AppColors.surface,
           ),
           child: child ?? const SizedBox.shrink(),
         );
