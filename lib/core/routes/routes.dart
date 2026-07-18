@@ -41,6 +41,12 @@ class AppRoutes {
     GetPage(
       name: RouteNames.findingDriver,
       page: () => FindingDriverScreen(
+        bookingNo: Get.arguments is Map<String, dynamic>
+            ? Get.arguments['booking_no']?.toString()
+            : null,
+        bookingData: Get.arguments is Map<String, dynamic>
+            ? Get.arguments['booking_data'] as BookingDataModel?
+            : null,
         vehicleType: Get.arguments is Map<String, dynamic>
             ? Get.arguments['vehicle_type']?.toString()
             : null,

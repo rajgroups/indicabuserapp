@@ -162,6 +162,7 @@ class BookingController extends GetxController {
           arguments: {
             'vehicle_type': option.label,
             'booking_no': response.data?.bookingNo,
+            'booking_data': response.data,
           },
         );
         return;

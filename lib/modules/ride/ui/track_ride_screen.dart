@@ -1,9 +1,79 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/models/booking_response.dart';
 
-class TrackRideScreen extends StatelessWidget {
-  const TrackRideScreen({super.key});
+class TrackRideScreen extends StatefulWidget {
+  const TrackRideScreen({
+    super.key,
+    this.bookingNo,
+    this.bookingData,
+  });
+
+  final String? bookingNo;
+  final BookingDataModel? bookingData;
+
+  @override
+  State<TrackRideScreen> createState() => _TrackRideScreenState();
+}
+
+class _TrackRideScreenState extends State<TrackRideScreen> {
+  final Completer<GoogleMapController> _mapController = Completer();
+  final Set<Marker> _markers = {};
+  final Set<Polyline> _polylines = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _buildMarkersAndPolyline();
+    });
+  }
+
+  void _buildMarkersAndPolyline() {
+    if (widget.bookingData == null) return;
+
+    final booking = widget.bookingData!;
+    final pickupLat = double.tryParse(booking.pickupLatitude ?? '');
+    final pickupLng = double.tryParse(booking.pickupLongitude ?? '');
+    final dropLat = double.tryParse(booking.dropLatitude ?? '');
+    final dropLng = double.tryParse(booking.dropLongitude ?? '');
+
+    if (pickupLat == null || pickupLng == null) return;
+
+    final pickupPosition = LatLng(pickupLat, pickupLng);
+    final List<LatLng> polylineCoordinates = [pickupPosition];
+
+    setState(() {
+      _markers.add(Marker(
+        markerId: const MarkerId('pickup'),
+        position: pickupPosition,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      ));
+
+      if (dropLat != null && dropLng != null) {
+        final dropPosition = LatLng(dropLat, dropLng);
+        polylineCoordinates.add(dropPosition);
+        _markers.add(Marker(
+          markerId: const MarkerId('drop'),
+          position: dropPosition,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ));
+      }
+
+      _polylines.add(Polyline(polylineId: const PolylineId('route'), points: polylineCoordinates, color: AppColors.primary, width: 5));
+    });
+  }
+
+  String get _arrivalLabel {
+    if (widget.bookingData?.status == 'started') {
+      return 'Ride in progress';
+    }
+    return 'Arriving soon';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,22 +81,23 @@ class TrackRideScreen extends StatelessWidget {
       backgroundColor: AppColors.authBackground,
       body: Stack(
         children: [
-          // 1. Mock Map Area (Full Screen)
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFF8F6F0), Color(0xFFF7F0D7)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: LatLng(
+                double.tryParse(widget.bookingData?.pickupLatitude ?? '0') ?? 20.5937,
+                double.tryParse(widget.bookingData?.pickupLongitude ?? '0') ?? 78.9629,
               ),
+              zoom: 14,
             ),
-            child: Center(
-              child: Icon(
-                Icons.map_rounded,
-                size: 100,
-                color: AppColors.border.withValues(alpha: 0.5),
-              ),
-            ),
+            onMapCreated: (controller) {
+              if (!_mapController.isCompleted) {
+                _mapController.complete(controller);
+              }
+            },
+            markers: _markers,
+            polylines: _polylines,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
           ),
 
           // 2. Floating Top Bar
@@ -62,18 +133,18 @@ class TrackRideScreen extends StatelessWidget {
                           BoxShadow(color: Color(0x16000000), blurRadius: 20, offset: Offset(0, 8)),
                         ],
                       ),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
+                          const Text(
                             'Live Tracking',
                             style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Text(
-                            'Arriving in 12 mins',
-                            style: TextStyle(fontSize: 16, color: AppColors.textPrimary, fontWeight: FontWeight.w700),
+                            _arrivalLabel,
+                            style: const TextStyle(fontSize: 16, color: AppColors.textPrimary, fontWeight: FontWeight.w700),
                           ),
                         ],
                       ),
@@ -125,13 +196,13 @@ class TrackRideScreen extends StatelessWidget {
                       child: const Icon(Icons.local_taxi_rounded, size: 24, color: AppColors.primaryDark),
                     ),
                     const SizedBox(width: 16),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('KA 01 AB 1234', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                          Text('White Swift Dzire', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                          Text(widget.bookingData?.vehicleNumber ?? '...', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                          Text(widget.bookingData?.vehicleName ?? '...', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                         ],
                       ),
                     ),

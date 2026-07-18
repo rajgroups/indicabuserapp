@@ -1,12 +1,25 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/models/booking_response.dart';
+import 'package:indicab/core/network/client.dart';
+import 'package:indicab/core/network/network_exceptions.dart';
+import 'package:indicab/core/repository/BookingRepository.dart';
+import 'package:indicab/core/routes/names.dart';
 
 class FindingDriverScreen extends StatefulWidget {
-  const FindingDriverScreen({super.key, this.vehicleType});
+  const FindingDriverScreen({
+    super.key,
+    this.bookingNo,
+    this.bookingData,
+    this.vehicleType,
+  });
 
+  final String? bookingNo;
+  final BookingDataModel? bookingData;
   final String? vehicleType;
 
   @override
@@ -15,7 +28,11 @@ class FindingDriverScreen extends StatefulWidget {
 
 class _FindingDriverScreenState extends State<FindingDriverScreen>
     with TickerProviderStateMixin {
+  final BookingRepository _bookingRepository = BookingRepository(ApiClient());
+  Timer? _statusTimer;
+  bool _isRefreshing = false;
   String _statusText = 'Finding your ride...';
+  BookingDataModel? _bookingData;
   late final AnimationController _pulseController;
   late final AnimationController _routeController;
   late final AnimationController _searchController;
@@ -23,6 +40,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
   @override
   void initState() {
     super.initState();
+    _bookingData = widget.bookingData;
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
@@ -35,7 +53,23 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
       vsync: this,
       duration: const Duration(milliseconds: 3200),
     )..repeat();
+
+    if (_bookingNo.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        _refreshBookingStatus();
+        _statusTimer = Timer.periodic(
+          const Duration(seconds: 3),
+          (_) => _refreshBookingStatus(),
+        );
+      });
+    }
   }
+
+  String get _bookingNo => widget.bookingNo?.trim() ?? '';
 
   String get _vehicleTypeLabel {
     final value = widget.vehicleType?.trim();
@@ -57,8 +91,89 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     return Icons.local_taxi_rounded;
   }
 
+  String _statusLabelFor(String? status) {
+    final value = status?.trim().toLowerCase();
+    return switch (value) {
+      'accepted' => 'Driver accepted your ride',
+      'started' => 'Ride in progress',
+      'completed' => 'Ride completed',
+      'cancelled' => 'Ride cancelled',
+      _ => 'Finding your ride...',
+    };
+  }
+
+  Map<String, dynamic> _bookingArguments(BookingDataModel booking) {
+    return {
+      'booking_no': booking.bookingNo ?? _bookingNo,
+      'booking_data': booking,
+    };
+  }
+
+  Future<void> _refreshBookingStatus() async {
+    if (_isRefreshing || _bookingNo.isEmpty || !mounted) {
+      return;
+    }
+
+    _isRefreshing = true;
+    try {
+      final response = await _bookingRepository.getBooking(
+        _bookingNo,
+        includeOtp: true,
+      );
+      final booking = response.data;
+      if (booking == null || !mounted) {
+        return;
+      }
+
+      setState(() {
+        _bookingData = booking;
+        _statusText = _statusLabelFor(booking.status);
+      });
+
+      final status = booking.status?.trim().toLowerCase();
+      if (status == 'accepted') {
+        _statusTimer?.cancel();
+        if (Get.currentRoute != RouteNames.rideOtp) {
+          Get.offAllNamed(
+            RouteNames.rideOtp,
+            arguments: _bookingArguments(booking),
+          );
+        }
+      } else if (status == 'started') {
+        _statusTimer?.cancel();
+        if (Get.currentRoute != RouteNames.activeRide) {
+          Get.offAllNamed(
+            RouteNames.activeRide,
+            arguments: _bookingArguments(booking),
+          );
+        }
+      } else if (status == 'completed') {
+        _statusTimer?.cancel();
+        if (Get.currentRoute != RouteNames.rideSummary) {
+          Get.offAllNamed(
+            RouteNames.rideSummary,
+            arguments: _bookingArguments(booking),
+          );
+        }
+      }
+    } catch (error) {
+      if (error is NetworkException && error.statusCode == 401) {
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _statusText = 'Waiting for ride updates...';
+        });
+      }
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
   @override
   void dispose() {
+    _statusTimer?.cancel();
     _pulseController.dispose();
     _routeController.dispose();
     _searchController.dispose();
@@ -174,6 +289,8 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
                     search: _searchController.value,
                     vehicleIcon: _vehicleIcon,
                     vehicleType: _vehicleTypeLabel,
+                    bookingNo: _bookingNo,
+                    bookingData: _bookingData,
                     onCancel: () {
                       Get.back();
                     },
@@ -256,6 +373,8 @@ class _SearchCard extends StatelessWidget {
     required this.search,
     required this.vehicleIcon,
     required this.vehicleType,
+    required this.bookingNo,
+    required this.bookingData,
     required this.onCancel,
   });
 
@@ -264,6 +383,8 @@ class _SearchCard extends StatelessWidget {
   final double search;
   final IconData vehicleIcon;
   final String vehicleType;
+  final String bookingNo;
+  final BookingDataModel? bookingData;
   final VoidCallback onCancel;
 
   @override
@@ -330,6 +451,50 @@ class _SearchCard extends StatelessWidget {
               height: 1.5,
             ),
           ),
+          if (bookingNo.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.inputFill,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Booking number',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    bookingNo,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (bookingData?.driverName?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Assigned to ${bookingData!.driverName!.trim()}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,

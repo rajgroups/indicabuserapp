@@ -41,10 +41,23 @@ class SocketService extends GetxService with WidgetsBindingObserver {
     super.onClose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      print('WebSocket: App resumed, ensuring connection...');
+      ensureConnected();
+    } else if (state == AppLifecycleState.paused) {
+      print('WebSocket: App paused.');
+      // The OS might close the socket. We will rely on `ensureConnected` on resume.
+    }
+  }
+
   /// Establishes a connection to the WebSocket server.
   /// It stores the token for automatic reconnection.
   Future<void> connect(String token) async {
     _token = token;
+    print(_token);
     _shouldReconnect = true;
     final url = '$_baseUrl?token=$_token';
 

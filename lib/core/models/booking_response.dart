@@ -40,6 +40,10 @@ class BookingDataModel {
     this.driverName,
     this.vehicleNumber,
     this.vehicleName,
+    this.pickupLatitude,
+    this.pickupLongitude,
+    this.dropLatitude,
+    this.dropLongitude,
   });
 
   final int? id;
@@ -57,6 +61,10 @@ class BookingDataModel {
   final String? driverName;
   final String? vehicleNumber;
   final String? vehicleName;
+  final String? pickupLatitude;
+  final String? pickupLongitude;
+  final String? dropLatitude;
+  final String? dropLongitude;
 
   factory BookingDataModel.fromJson(Map<String, dynamic> json) {
     return BookingDataModel(
@@ -87,6 +95,14 @@ class BookingDataModel {
               json['vehicle']['model']?.toString(),
             ])
           : null,
+      pickupLatitude: json['pickup_location'] is Map<String, dynamic>
+          ? json['pickup_location']['latitude']?.toString()
+          : null,
+      pickupLongitude: json['pickup_location'] is Map<String, dynamic>
+          ? json['pickup_location']['longitude']?.toString()
+          : null,
+      dropLatitude: json['drop_location'] is Map<String, dynamic> ? json['drop_location']['latitude']?.toString() : null,
+      dropLongitude: json['drop_location'] is Map<String, dynamic> ? json['drop_location']['longitude']?.toString() : null,
     );
   }
 

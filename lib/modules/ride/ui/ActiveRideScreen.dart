@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/models/booking_response.dart';
-import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/modules/ride/ui/track_ride_screen.dart';
+import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/modules/ride/ui/sos_screen.dart';
 
 class ActiveRideScreen extends StatefulWidget {
@@ -17,6 +20,19 @@ class ActiveRideScreen extends StatefulWidget {
 }
 
 class _ActiveRideScreenState extends State<ActiveRideScreen> {
+  final Completer<GoogleMapController> _mapController = Completer();
+  final Set<Marker> _markers = {};
+  final Set<Polyline> _polylines = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Use a post-frame callback to ensure widget is built before we access its properties
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _buildMarkersAndPolyline();
+    });
+  }
+
   String get _bookingNoLabel =>
       widget.bookingData?.bookingNo ?? widget.bookingNo ?? 'Ride in progress';
 
@@ -60,27 +76,71 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
     };
   }
 
+  void _buildMarkersAndPolyline() {
+    if (widget.bookingData == null) return;
+
+    final booking = widget.bookingData!;
+    final pickupLat = double.tryParse(booking.pickupLatitude ?? '');
+    final pickupLng = double.tryParse(booking.pickupLongitude ?? '');
+    final dropLat = double.tryParse(booking.dropLatitude ?? '');
+    final dropLng = double.tryParse(booking.dropLongitude ?? '');
+
+    if (pickupLat == null || pickupLng == null) return;
+
+    final pickupPosition = LatLng(pickupLat, pickupLng);
+    final List<LatLng> polylineCoordinates = [pickupPosition];
+
+    setState(() {
+      _markers.add(Marker(
+        markerId: const MarkerId('pickup'),
+        position: pickupPosition,
+        infoWindow: const InfoWindow(title: 'Pickup Location'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      ));
+
+      if (dropLat != null && dropLng != null) {
+        final dropPosition = LatLng(dropLat, dropLng);
+        polylineCoordinates.add(dropPosition);
+        _markers.add(Marker(
+          markerId: const MarkerId('drop'),
+          position: dropPosition,
+          infoWindow: const InfoWindow(title: 'Drop-off Location'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ));
+      }
+
+      _polylines.add(Polyline(
+        polylineId: const PolylineId('route'),
+        points: polylineCoordinates,
+        color: AppColors.primary,
+        width: 5,
+      ));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.authBackground,
       body: Stack(
         children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFF8F6F0), Color(0xFFF7F0D7)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: LatLng(
+                double.tryParse(widget.bookingData?.pickupLatitude ?? '0') ??
+                    20.5937,
+                double.tryParse(widget.bookingData?.pickupLongitude ?? '0') ??
+                    78.9629,
               ),
+              zoom: 14,
             ),
-            child: Center(
-              child: Icon(
-                Icons.map_rounded,
-                size: 100,
-                color: AppColors.border.withValues(alpha: 0.5),
-              ),
-            ),
+            onMapCreated: (GoogleMapController controller) {
+              _mapController.complete(controller);
+            },
+            markers: _markers,
+            polylines: _polylines,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
           ),
           SafeArea(
             child: Padding(
@@ -155,7 +215,14 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                   ),
                   const SizedBox(width: 14),
                   InkWell(
-                    onTap: () => Get.to(() => const TrackRideScreen()),
+                    onTap: () {
+                      Get.to(
+                        () => TrackRideScreen(
+                          bookingNo: widget.bookingNo,
+                          bookingData: widget.bookingData,
+                        ),
+                      );
+                    },
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
                       width: 54,
@@ -172,7 +239,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                         ],
                       ),
                       child: const Icon(
-                        Icons.map_rounded,
+                        Icons.track_changes_rounded,
                         color: AppColors.textPrimary,
                       ),
                     ),
