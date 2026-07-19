@@ -100,10 +100,11 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
   String _statusLabelFor(String? status) {
     final value = status?.trim().toLowerCase();
     return switch (value) {
-      'accepted' => 'Driver accepted your ride',
+      'accepted' || 'driver_assigned' => 'Driver accepted your ride',
       'started' => 'Ride in progress',
       'completed' => 'Ride completed',
       'cancelled' => 'Ride cancelled',
+      'no_driver_available' => 'No driver available',
       _ => 'Finding your ride...',
     };
   }
@@ -115,13 +116,24 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     };
   }
 
+  DateTime? _searchStartTime;
+
   void _startStatusPolling() {
+    _searchStartTime = DateTime.now();
     _statusTimer?.cancel();
     _refreshBookingStatus();
     _statusTimer = Timer.periodic(
       const Duration(seconds: 3),
       (_) => _refreshBookingStatus(),
     );
+  }
+
+  void _handleRetry() {
+    if (_bookingNo.isNotEmpty) {
+      _retryExistingBooking();
+    } else {
+      _createBookingAndStartPolling();
+    }
   }
 
   Future<void> _createBookingAndStartPolling() async {
@@ -172,8 +184,57 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
   }
 
+  Future<void> _retryExistingBooking() async {
+    if (_isCreatingBooking || _bookingNo.isEmpty || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _isCreatingBooking = true;
+      _bookingError = null;
+      _statusText = 'Resending booking request...';
+    });
+
+    try {
+      final socketService = Get.find<SocketService>();
+      await socketService.ensureConnected();
+
+      final response = await _bookingRepository.retryBooking(_bookingNo);
+      if (!response.status || response.data == null) {
+        throw Exception(response.message.isNotEmpty ? response.message : 'Failed to retry booking');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _bookingData = response.data;
+        _isCreatingBooking = false;
+        _statusText = 'Finding your ride...';
+      });
+
+      _startStatusPolling();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isCreatingBooking = false;
+        _bookingError = e.toString();
+        _statusText = 'Booking retry failed';
+      });
+    }
+  }
+
   Future<void> _refreshBookingStatus() async {
     if (_isRefreshing || _bookingNo.isEmpty || !mounted) {
+      return;
+    }
+
+    if (_searchStartTime != null &&
+        DateTime.now().difference(_searchStartTime!).inSeconds > 60) {
+      _statusTimer?.cancel();
+      setState(() {
+        _statusText = 'Booking failed';
+        _bookingError = 'No drivers accepted your ride request. Please try again.';
+      });
       return;
     }
 
@@ -194,7 +255,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
       });
 
       final status = booking.status?.trim().toLowerCase();
-      if (status == 'accepted') {
+      if (status == 'accepted' || status == 'driver_assigned') {
         _statusTimer?.cancel();
         if (Get.currentRoute != RouteNames.activeRide) {
           Get.offAllNamed(
@@ -218,6 +279,12 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
             arguments: _bookingArguments(booking),
           );
         }
+      } else if (status == 'no_driver_available') {
+        _statusTimer?.cancel();
+        setState(() {
+          _statusText = 'No driver available';
+          _bookingError = 'No drivers accepted your ride request. Please try again.';
+        });
       }
     } catch (error) {
       if (error is NetworkException && error.statusCode == 401) {
@@ -278,7 +345,12 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
                   Row(
                     children: [
                       InkWell(
-                        onTap: Get.back,
+                        onTap: () {
+                          Get.offAllNamed(
+                            RouteNames.home,
+                            arguments: <String, dynamic>{'from_active_ride': true},
+                          );
+                        },
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
                           width: 52,
@@ -356,7 +428,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
                     bookingData: _bookingData,
                     bookingError: _bookingError,
                     isCreatingBooking: _isCreatingBooking,
-                    onRetry: _createBookingAndStartPolling,
+                    onRetry: _handleRetry,
                     onCancel: () {
                       Get.back();
                     },

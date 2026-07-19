@@ -16,6 +16,7 @@ import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/modules/home/HomeService.dart';
 import 'package:indicab/modules/home/models/VehicleModels.dart';
 import 'package:indicab/modules/home/models/VehicleTypeResponse.dart';
+import 'package:indicab/core/models/booking_response.dart';
 
 class HomeController extends GetxController {
   HomeController();
@@ -23,6 +24,8 @@ class HomeController extends GetxController {
   final SecureStorageService _secureStorage = SecureStorageService();
   final StorageService _storage = StorageService();
   final BookingRepository _bookingRepository = BookingRepository(ApiClient());
+
+  final Rxn<BookingDataModel> activeRide = Rxn<BookingDataModel>();
 
   static const LatLng defaultPickup = LatLng(12.9756, 77.6050);
   static const CameraPosition initialCameraPosition = CameraPosition(
@@ -228,23 +231,43 @@ class HomeController extends GetxController {
       final response = await _bookingRepository.getActiveRide();
       final booking = response.data;
 
+      activeRide.value = booking;
+
       if (booking == null) {
         return;
       }
 
       await _socketService.ensureConnected();
 
-      final bookingArgs = <String, dynamic>{
-        'booking_no': booking.bookingNo,
-        'booking_data': booking,
-      };
+      final arguments = Get.arguments;
+      final fromActiveRide = arguments is Map && arguments['from_active_ride'] == true;
 
-      if (booking.status == 'started') {
-        _redirectToRide(RouteNames.activeRide, bookingArgs);
+      if (fromActiveRide) {
         return;
       }
 
-      _redirectToRide(RouteNames.activeRide, bookingArgs);
+      final status = booking.status?.trim().toLowerCase();
+
+      if (status == 'pending') {
+        final bookingArgs = <String, dynamic>{
+          'booking_no': booking.bookingNo,
+          'booking_data': booking,
+          'vehicle_type': booking.categoryName,
+        };
+        _redirectToRide(RouteNames.findingDriver, bookingArgs);
+      } else if (status == 'accepted' || status == 'started') {
+        final bookingArgs = <String, dynamic>{
+          'booking_no': booking.bookingNo,
+          'booking_data': booking,
+        };
+        _redirectToRide(RouteNames.activeRide, bookingArgs);
+      } else if (status == 'completed') {
+        final bookingArgs = <String, dynamic>{
+          'booking_no': booking.bookingNo,
+          'booking_data': booking,
+        };
+        _redirectToRide(RouteNames.rideSummary, bookingArgs);
+      }
     } catch (error) {
       debugPrint('HomeController._checkActiveRide error: $error');
     }

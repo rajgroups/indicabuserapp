@@ -4,9 +4,8 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/models/booking_response.dart';
-import 'package:indicab/core/network/client.dart';
 import 'package:indicab/core/routes/names.dart';
-import 'package:indicab/core/repository/BookingRepository.dart';
+import 'package:indicab/modules/home/HomeController.dart';
 
 /// A map to hold event handlers.
 typedef EventCallback = void Function(dynamic data);
@@ -17,7 +16,6 @@ class SocketService extends GetxService with WidgetsBindingObserver {
   Timer? _reconnectTimer;
   Timer? _pingTimer;
   bool _shouldReconnect = true;
-  final BookingRepository _bookingRepository = BookingRepository(ApiClient());
 
   /// Base URL for the WebSocket connection.
   final String _baseUrl = 'ws://10.46.210.83:9502';
@@ -256,10 +254,22 @@ class SocketService extends GetxService with WidgetsBindingObserver {
       return;
     }
 
-    final bookingData = await _fetchBookingData(bookingNo);
+    // Construct the BookingDataModel directly from the WebSocket payload
+    // to avoid hitting the HTTP bookings/{bookingNo} API repeatedly.
+    final bookingData = BookingDataModel.fromJson(booking);
+
+    if (Get.isRegistered<HomeController>()) {
+      final homeController = Get.find<HomeController>();
+      if (status == 'cancelled' || status == 'completed') {
+        homeController.activeRide.value = null;
+      } else {
+        homeController.activeRide.value = bookingData;
+      }
+    }
+
     final arguments = <String, dynamic>{
       'booking_no': bookingNo,
-      if (bookingData != null) 'booking_data': bookingData,
+      'booking_data': bookingData,
     };
 
     if (status == 'accepted' && Get.currentRoute != RouteNames.activeRide) {
@@ -277,18 +287,4 @@ class SocketService extends GetxService with WidgetsBindingObserver {
     }
   }
 
-  Future<BookingDataModel?> _fetchBookingData(String bookingNo) async {
-    try {
-      final response = await _bookingRepository.getBooking(
-        bookingNo,
-        includeOtp: true,
-      );
-      return response.data;
-    } catch (error) {
-      print(
-        'WebSocket: Failed to fetch booking details for $bookingNo: $error',
-      );
-      return null;
-    }
-  }
 }

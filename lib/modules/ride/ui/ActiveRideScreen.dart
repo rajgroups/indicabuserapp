@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:dio/dio.dart';
+import 'package:indicab/core/config/Config.dart';
+import 'package:indicab/core/services/SocketService.dart';
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/network/client.dart';
 import 'package:indicab/core/network/network_exceptions.dart';
@@ -30,17 +33,29 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   Timer? _refreshTimer;
   BookingDataModel? _bookingData;
   bool _isLoading = false;
+  LatLng? _driverPosition;
 
   @override
   void initState() {
     super.initState();
     _bookingData = widget.bookingData;
+    if (_bookingData != null) {
+      final driverLat = double.tryParse(_bookingData?.driverLatitude ?? '');
+      final driverLng = double.tryParse(_bookingData?.driverLongitude ?? '');
+      if (driverLat != null && driverLng != null) {
+        _driverPosition = LatLng(driverLat, driverLng);
+      }
+    }
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _buildMarkersAndPolyline();
     });
     _fetchBookingDetails();
     _startAutoRefresh();
+
+    // Subscribe to WebSocket driver location updates
+    final socketService = Get.find<SocketService>();
+    socketService.on('driver_location_update', _onDriverLocationUpdate);
   }
 
   @override
@@ -81,11 +96,22 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       );
       final bookingData = response.data;
       if (bookingData != null && mounted) {
+        final oldDriverLat = _driverPosition?.latitude;
+        final oldDriverLng = _driverPosition?.longitude;
+
+        final driverLat = double.tryParse(bookingData.driverLatitude ?? '');
+        final driverLng = double.tryParse(bookingData.driverLongitude ?? '');
+        if (driverLat != null && driverLng != null) {
+          _driverPosition = LatLng(driverLat, driverLng);
+        }
+
         final shouldRebuildMap =
             bookingData.pickupLatitude != _bookingData?.pickupLatitude ||
             bookingData.pickupLongitude != _bookingData?.pickupLongitude ||
             bookingData.dropLatitude != _bookingData?.dropLatitude ||
-            bookingData.dropLongitude != _bookingData?.dropLongitude;
+            bookingData.dropLongitude != _bookingData?.dropLongitude ||
+            driverLat != oldDriverLat ||
+            driverLng != oldDriverLng;
 
         setState(() {
           _bookingData = bookingData;
@@ -157,7 +183,122 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     };
   }
 
-  void _buildMarkersAndPolyline({bool notify = true}) {
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    final socketService = Get.find<SocketService>();
+    socketService.off('driver_location_update', _onDriverLocationUpdate);
+    super.dispose();
+  }
+
+  void _onDriverLocationUpdate(dynamic data) {
+    if (data is! Map<String, dynamic> || !mounted) return;
+    
+    final bookingNo = data['booking_no']?.toString();
+    if (bookingNo != widget.bookingNo) return;
+
+    final lat = double.tryParse(data['latitude']?.toString() ?? '');
+    final lng = double.tryParse(data['longitude']?.toString() ?? '');
+
+    if (lat != null && lng != null) {
+      setState(() {
+        _driverPosition = LatLng(lat, lng);
+      });
+      _buildMarkersAndPolyline(notify: true);
+    }
+  }
+
+  Future<List<LatLng>> _getDirections(LatLng origin, LatLng destination) async {
+    final key = AppEnv.googleMapsApiKey;
+    if (key.isEmpty) {
+      return [origin, destination];
+    }
+
+    try {
+      final dio = Dio();
+      final url = 'https://maps.googleapis.com/maps/api/directions/json'
+          '?origin=${origin.latitude},${origin.longitude}'
+          '&destination=${destination.latitude},${destination.longitude}'
+          '&key=$key';
+
+      final response = await dio.get(url);
+      if (response.statusCode == 200 && response.data['status'] == 'OK') {
+        final routes = response.data['routes'] as List;
+        if (routes.isNotEmpty) {
+          final points = routes[0]['overview_polyline']['points'] as String;
+          return _decodePolyline(points);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching directions: $e');
+    }
+
+    return [origin, destination];
+  }
+
+  List<LatLng> _decodePolyline(String encoded) {
+    final List<LatLng> poly = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      poly.add(LatLng(lat / 1E5, lng / 1E5));
+    }
+    return poly;
+  }
+
+  Future<void> _adjustMapBounds() async {
+    if (!mounted || !_mapController.isCompleted) return;
+
+    final controller = await _mapController.future;
+    
+    if (_markers.isEmpty) return;
+
+    double? minLat, maxLat, minLng, maxLng;
+
+    for (final marker in _markers) {
+      final lat = marker.position.latitude;
+      final lng = marker.position.longitude;
+      
+      if (minLat == null || lat < minLat) minLat = lat;
+      if (maxLat == null || lat > maxLat) maxLat = lat;
+      if (minLng == null || lng < minLng) minLng = lng;
+      if (maxLng == null || lng > maxLng) maxLng = lng;
+    }
+
+    if (minLat != null && maxLat != null && minLng != null && maxLng != null) {
+      final bounds = LatLngBounds(
+        northeast: LatLng(maxLat, maxLng),
+        southwest: LatLng(minLat, minLng),
+      );
+      
+      await controller.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 80),
+      );
+    }
+  }
+
+  Future<void> _buildMarkersAndPolyline({bool notify = true}) async {
     if (_bookingData == null) return;
 
     final booking = _bookingData!;
@@ -169,9 +310,17 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     if (pickupLat == null || pickupLng == null) return;
 
     final pickupPosition = LatLng(pickupLat, pickupLng);
-    final List<LatLng> polylineCoordinates = [pickupPosition];
+    List<LatLng> polylineCoordinates = [pickupPosition];
+
+    if (booking.requiresDropLocation && dropLat != null && dropLng != null) {
+      final dropPosition = LatLng(dropLat, dropLng);
+      polylineCoordinates = await _getDirections(pickupPosition, dropPosition);
+    }
 
     void updateState() {
+      _markers.clear();
+      _polylines.clear();
+
       _markers.add(
         Marker(
           markerId: const MarkerId('pickup'),
@@ -183,9 +332,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         ),
       );
 
-      if (dropLat != null && dropLng != null) {
+      if (booking.requiresDropLocation && dropLat != null && dropLng != null) {
         final dropPosition = LatLng(dropLat, dropLng);
-        polylineCoordinates.add(dropPosition);
         _markers.add(
           Marker(
             markerId: const MarkerId('drop'),
@@ -193,6 +341,19 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
             infoWindow: const InfoWindow(title: 'Drop-off Location'),
             icon: BitmapDescriptor.defaultMarkerWithHue(
               BitmapDescriptor.hueRed,
+            ),
+          ),
+        );
+      }
+
+      if (_driverPosition != null) {
+        _markers.add(
+          Marker(
+            markerId: const MarkerId('driver'),
+            position: _driverPosition!,
+            infoWindow: const InfoWindow(title: 'Driver Location'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueBlue,
             ),
           ),
         );
@@ -210,16 +371,11 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
     if (notify && mounted) {
       setState(updateState);
+      _adjustMapBounds();
     } else {
       updateState();
+      _adjustMapBounds();
     }
-  }
-
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
   }
 
   @override
@@ -227,7 +383,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     final status = _bookingData?.status?.trim().toLowerCase();
     final isStarted = status == 'started';
     final isAccepted = status == 'accepted';
-    final otp = isStarted ? _bookingData?.endOtp : _bookingData?.startOtp;
+    final otp = _bookingData?.startOtp;
 
     return Scaffold(
       backgroundColor: AppColors.authBackground,
@@ -256,7 +412,12 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
               child: Row(
                 children: [
                   InkWell(
-                    onTap: Get.back,
+                    onTap: () {
+                      Get.offAllNamed(
+                        RouteNames.home,
+                        arguments: <String, dynamic>{'from_active_ride': true},
+                      );
+                    },
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
                       width: 54,
@@ -612,12 +773,14 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                             title: 'Pickup',
                             subtitle: _pickupLabel,
                           ),
-                          const SizedBox(height: 14),
-                          _RouteStep(
-                            icon: Icons.location_on_rounded,
-                            title: 'Drop',
-                            subtitle: _dropLabel,
-                          ),
+                          if (_bookingData?.requiresDropLocation != false) ...[
+                            const SizedBox(height: 14),
+                            _RouteStep(
+                              icon: Icons.location_on_rounded,
+                              title: 'Drop',
+                              subtitle: _dropLabel,
+                            ),
+                          ],
                           const SizedBox(height: 28),
                           InkWell(
                             onTap: () => Get.to(() => const SosScreen()),

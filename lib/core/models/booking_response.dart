@@ -14,7 +14,9 @@ class BookingResponseModel {
     final data = json['data'];
 
     return BookingResponseModel(
-      status: rawStatus is bool ? rawStatus : rawStatus.toString() == 'true',
+      status: rawStatus is bool
+          ? rawStatus
+          : (rawStatus.toString() == 'true' || rawStatus.toString() == 'success'),
       message: json['message']?.toString() ?? '',
       data: data is Map<String, dynamic>
           ? BookingDataModel.fromJson(data)
@@ -45,6 +47,10 @@ class BookingDataModel {
     this.pickupLongitude,
     this.dropLatitude,
     this.dropLongitude,
+    this.categoryName,
+    this.driverLatitude,
+    this.driverLongitude,
+    required this.requiresDropLocation,
   });
 
   final int? id;
@@ -67,8 +73,16 @@ class BookingDataModel {
   final String? pickupLongitude;
   final String? dropLatitude;
   final String? dropLongitude;
+  final String? categoryName;
+  final String? driverLatitude;
+  final String? driverLongitude;
+  final bool requiresDropLocation;
 
   factory BookingDataModel.fromJson(Map<String, dynamic> json) {
+    final requiresDrop = json['requires_drop_location'] is bool
+        ? json['requires_drop_location'] as bool
+        : (json['requires_drop_location']?.toString() == 'true' || json['drop_location'] != null);
+
     return BookingDataModel(
       id: json['id'] as int?,
       bookingNo: json['booking_no']?.toString(),
@@ -98,15 +112,36 @@ class BookingDataModel {
               json['vehicle']['model']?.toString(),
             ])
           : null,
-      pickupLatitude: json['pickup_location'] is Map<String, dynamic>
-          ? json['pickup_location']['latitude']?.toString()
+      pickupLatitude: _getLocationField(json, 'pickup_location', 'latitude'),
+      pickupLongitude: _getLocationField(json, 'pickup_location', 'longitude'),
+      dropLatitude: _getLocationField(json, 'drop_location', 'latitude'),
+      dropLongitude: _getLocationField(json, 'drop_location', 'longitude'),
+      categoryName: json['category_name']?.toString() ??
+          (json['category'] is Map<String, dynamic>
+              ? json['category']['name']?.toString()
+              : null),
+      driverLatitude: json['driver'] is Map<String, dynamic>
+          ? json['driver']['latitude']?.toString()
           : null,
-      pickupLongitude: json['pickup_location'] is Map<String, dynamic>
-          ? json['pickup_location']['longitude']?.toString()
+      driverLongitude: json['driver'] is Map<String, dynamic>
+          ? json['driver']['longitude']?.toString()
           : null,
-      dropLatitude: json['drop_location'] is Map<String, dynamic> ? json['drop_location']['latitude']?.toString() : null,
-      dropLongitude: json['drop_location'] is Map<String, dynamic> ? json['drop_location']['longitude']?.toString() : null,
+      requiresDropLocation: requiresDrop,
     );
+  }
+
+  static String? _getLocationField(Map<String, dynamic> json, String relationKey, String fieldKey) {
+    final loc = json[relationKey];
+    if (loc is Map<String, dynamic>) {
+      if (loc.containsKey(fieldKey)) {
+        return loc[fieldKey]?.toString();
+      }
+      final data = loc['data'];
+      if (data is Map<String, dynamic> && data.containsKey(fieldKey)) {
+        return data[fieldKey]?.toString();
+      }
+    }
+    return null;
   }
 
   static String? _joinParts(List<String?> parts) {

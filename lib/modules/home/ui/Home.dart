@@ -8,6 +8,7 @@ import 'package:indicab/modules/vehicle/nearby.dart';
 import 'package:indicab/shared/widgets/home/home_widgets.dart';
 import 'package:indicab/modules/home/HomeController.dart';
 import 'package:indicab/modules/home/models/VehicleModels.dart';
+import 'package:indicab/core/models/booking_response.dart';
 
 class HomeScreen extends GetView<HomeController> {
   const HomeScreen({super.key});
@@ -28,6 +29,48 @@ class HomeScreen extends GetView<HomeController> {
             child: Stack(
               children: [
                 const HomeMapArea(),
+                Obx(() {
+                  final activeRide = controller.activeRide.value;
+                  if (activeRide == null) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Positioned(
+                    top: 16,
+                    left: 20,
+                    right: 20,
+                    child: _ActiveRideFloatingCard(
+                      booking: activeRide,
+                      onTap: () {
+                        final status = activeRide.status?.trim().toLowerCase();
+                        final bookingArgs = <String, dynamic>{
+                          'booking_no': activeRide.bookingNo,
+                          'booking_data': activeRide,
+                        };
+                        if (status == 'pending') {
+                          Get.toNamed(
+                            RouteNames.findingDriver,
+                            arguments: <String, dynamic>{
+                              'booking_no': activeRide.bookingNo,
+                              'booking_data': activeRide,
+                              'vehicle_type': activeRide.categoryName,
+                            },
+                          );
+                        } else if (status == 'accepted' || status == 'started') {
+                          Get.toNamed(
+                            RouteNames.activeRide,
+                            arguments: bookingArgs,
+                          );
+                        } else if (status == 'completed') {
+                          Get.toNamed(
+                            RouteNames.rideSummary,
+                            arguments: bookingArgs,
+                          );
+                        }
+                      },
+                    ),
+                  );
+                }),
                 SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
                   child: Column(
@@ -390,6 +433,135 @@ class HomeScreen extends GetView<HomeController> {
           },
         );
       },
+    );
+  }
+}
+
+class _ActiveRideFloatingCard extends StatelessWidget {
+  const _ActiveRideFloatingCard({required this.booking, required this.onTap});
+
+  final BookingDataModel booking;
+  final VoidCallback onTap;
+
+  String get _statusText {
+    final value = booking.status?.trim().toLowerCase();
+    return switch (value) {
+      'pending' => 'Finding your driver...',
+      'accepted' => 'Driver is arriving',
+      'started' => 'On trip to destination',
+      'completed' => 'Trip completed',
+      _ => 'Active Ride',
+    };
+  }
+
+  IconData get _icon {
+    final value = booking.status?.trim().toLowerCase();
+    return switch (value) {
+      'pending' => Icons.youtube_searched_for_rounded,
+      'accepted' => Icons.local_taxi_rounded,
+      'started' => Icons.navigation_rounded,
+      _ => Icons.directions_car_rounded,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.textPrimary.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Icon(
+                      _icon,
+                      color: AppColors.primary,
+                      size: 24,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _statusText,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        booking.pickupAddress ?? 'MG Road, Bengaluru',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white.withValues(alpha: 0.74),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text(
+                        'Track',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 16,
+                        color: AppColors.textPrimary,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
