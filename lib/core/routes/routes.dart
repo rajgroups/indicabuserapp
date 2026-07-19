@@ -4,6 +4,7 @@ import 'package:indicab/core/bindings/HomeBinding.dart';
 import 'package:indicab/layout/partials/menu.dart';
 import 'package:indicab/modules/auth/ui/login.dart';
 import 'package:indicab/modules/auth/ui/otp.dart';
+import 'package:indicab/core/models/booking_request.dart';
 import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/modules/history/ui/ride_details.dart';
 import 'package:indicab/modules/history/ui/ride_history.dart';
@@ -11,7 +12,6 @@ import 'package:indicab/modules/home/ui/Home.dart';
 import 'package:indicab/modules/home/ui/LocationSearchScreen.dart';
 import 'package:indicab/modules/ride/ui/ActiveRideScreen.dart';
 import 'package:indicab/modules/ride/ui/FindingDriverScreen.dart';
-import 'package:indicab/modules/ride/ui/ride_otp_screen.dart';
 import 'package:indicab/modules/ride/ui/ride_summary_screen.dart';
 import 'names.dart';
 
@@ -41,25 +41,17 @@ class AppRoutes {
     GetPage(
       name: RouteNames.findingDriver,
       page: () => FindingDriverScreen(
-        bookingNo: Get.arguments is Map<String, dynamic>
+        bookingNo: Get.arguments is Map
             ? Get.arguments['booking_no']?.toString()
             : null,
-        bookingData: Get.arguments is Map<String, dynamic>
+        bookingData: Get.arguments is Map
             ? Get.arguments['booking_data'] as BookingDataModel?
             : null,
-        vehicleType: Get.arguments is Map<String, dynamic>
+        vehicleType: Get.arguments is Map
             ? Get.arguments['vehicle_type']?.toString()
             : null,
-      ),
-    ),
-    GetPage(
-      name: RouteNames.rideOtp,
-      page: () => RideOtpScreen(
-        bookingNo: Get.arguments is Map<String, dynamic>
-            ? Get.arguments['booking_no']?.toString()
-            : null,
-        bookingData: Get.arguments is Map<String, dynamic>
-            ? Get.arguments['booking_data'] as BookingDataModel?
+        bookingRequest: Get.arguments is Map
+            ? Get.arguments['booking_request'] as BookingCreateRequest?
             : null,
       ),
     ),

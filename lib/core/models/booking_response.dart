@@ -36,6 +36,7 @@ class BookingDataModel {
     this.pickupAddress,
     this.dropAddress,
     this.startOtp,
+    this.endOtp,
     this.estimatedAmount,
     this.driverName,
     this.vehicleNumber,
@@ -57,6 +58,7 @@ class BookingDataModel {
   final String? pickupAddress;
   final String? dropAddress;
   final String? startOtp;
+  final String? endOtp;
   final double? estimatedAmount;
   final String? driverName;
   final String? vehicleNumber;
@@ -80,6 +82,7 @@ class BookingDataModel {
       pickupAddress: json['pickup_address']?.toString(),
       dropAddress: json['drop_address']?.toString(),
       startOtp: json['start_otp']?.toString(),
+      endOtp: json['end_otp']?.toString(),
       estimatedAmount: json['estimated_amount'] != null
           ? double.tryParse(json['estimated_amount'].toString())
           : null,

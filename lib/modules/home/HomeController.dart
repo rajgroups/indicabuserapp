@@ -244,7 +244,7 @@ class HomeController extends GetxController {
         return;
       }
 
-      _redirectToRide(RouteNames.rideOtp, bookingArgs);
+      _redirectToRide(RouteNames.activeRide, bookingArgs);
     } catch (error) {
       debugPrint('HomeController._checkActiveRide error: $error');
     }

@@ -16,7 +16,7 @@ class HomeScreen extends GetView<HomeController> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final compact = width < 380;
-    final vehicleHeight = compact ? 190.0 : 198.0;
+    final vehicleHeight = compact ? 208.0 : 216.0;
     final mapOffset = compact ? 390.0 : 330.0;
 
     return AppScreen(

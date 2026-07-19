@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/network/client.dart';
+import 'package:indicab/core/network/network_exceptions.dart';
+import 'package:indicab/core/repository/BookingRepository.dart';
 import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/modules/ride/ui/track_ride_screen.dart';
 import 'package:indicab/core/routes/names.dart';
@@ -19,34 +22,112 @@ class ActiveRideScreen extends StatefulWidget {
   State<ActiveRideScreen> createState() => _ActiveRideScreenState();
 }
 
-class _ActiveRideScreenState extends State<ActiveRideScreen> {
+class _ActiveRideScreenState extends State<ActiveRideScreen>
+    with WidgetsBindingObserver {
   final Completer<GoogleMapController> _mapController = Completer();
   final Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
+  Timer? _refreshTimer;
+  BookingDataModel? _bookingData;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    // Use a post-frame callback to ensure widget is built before we access its properties
+    _bookingData = widget.bookingData;
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _buildMarkersAndPolyline();
     });
+    _fetchBookingDetails();
+    _startAutoRefresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _fetchBookingDetails();
+    }
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer?.cancel();
+    final bookingNo = widget.bookingNo?.trim();
+    if (bookingNo == null || bookingNo.isEmpty) {
+      return;
+    }
+
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      _fetchBookingDetails(silent: true);
+    });
+  }
+
+  Future<void> _fetchBookingDetails({bool silent = false}) async {
+    final bookingNo = widget.bookingNo?.trim();
+    if (bookingNo == null || bookingNo.isEmpty) return;
+
+    if (!silent && mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
+    final BookingRepository bookingRepository = BookingRepository(ApiClient());
+    try {
+      final response = await bookingRepository.getBooking(
+        bookingNo,
+        includeOtp: true,
+      );
+      final bookingData = response.data;
+      if (bookingData != null && mounted) {
+        final shouldRebuildMap =
+            bookingData.pickupLatitude != _bookingData?.pickupLatitude ||
+            bookingData.pickupLongitude != _bookingData?.pickupLongitude ||
+            bookingData.dropLatitude != _bookingData?.dropLatitude ||
+            bookingData.dropLongitude != _bookingData?.dropLongitude;
+
+        setState(() {
+          _bookingData = bookingData;
+        });
+
+        if (shouldRebuildMap) {
+          _markers.clear();
+          _polylines.clear();
+          _buildMarkersAndPolyline();
+        }
+      }
+    } catch (e) {
+      if (e is NetworkException && e.statusCode == 401) {
+        return; // Handled by global handler
+      }
+      Get.snackbar(
+        'Error',
+        'Failed to fetch ride details: $e',
+        backgroundColor: AppColors.surface,
+      );
+    } finally {
+      if (!silent && mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   String get _bookingNoLabel =>
-      widget.bookingData?.bookingNo ?? widget.bookingNo ?? 'Ride in progress';
+      _bookingData?.bookingNo ?? widget.bookingNo ?? 'Ride in progress';
 
-  String get _driverName =>
-      widget.bookingData?.driverName?.trim().isNotEmpty == true
-      ? widget.bookingData!.driverName!.trim()
+  String get _driverName => _bookingData?.driverName?.trim().isNotEmpty == true
+      ? _bookingData!.driverName!.trim()
       : 'Driver';
 
   String get _vehicleLabel {
     final parts = <String>[
-      if (widget.bookingData?.vehicleName?.trim().isNotEmpty == true)
-        widget.bookingData!.vehicleName!.trim(),
-      if (widget.bookingData?.vehicleNumber?.trim().isNotEmpty == true)
-        widget.bookingData!.vehicleNumber!.trim(),
+      if (_bookingData?.vehicleName?.trim().isNotEmpty == true)
+        _bookingData!.vehicleName!.trim(),
+      if (_bookingData?.vehicleNumber?.trim().isNotEmpty == true)
+        _bookingData!.vehicleNumber!.trim(),
     ];
 
     if (parts.isEmpty) {
@@ -57,14 +138,14 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
   }
 
   String get _pickupLabel =>
-      widget.bookingData?.pickupAddress ?? 'Waiting for live pickup location';
+      _bookingData?.pickupAddress ?? 'Waiting for live pickup location';
 
   String get _dropLabel =>
-      widget.bookingData?.dropAddress ??
+      _bookingData?.dropAddress ??
       'Destination will be updated by socket event';
 
   String get _statusLabel {
-    final status = widget.bookingData?.status?.trim();
+    final status = _bookingData?.status?.trim();
     if (status == null || status.isEmpty) {
       return 'Ride in progress';
     }
@@ -76,10 +157,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
     };
   }
 
-  void _buildMarkersAndPolyline() {
-    if (widget.bookingData == null) return;
+  void _buildMarkersAndPolyline({bool notify = true}) {
+    if (_bookingData == null) return;
 
-    final booking = widget.bookingData!;
+    final booking = _bookingData!;
     final pickupLat = double.tryParse(booking.pickupLatitude ?? '');
     final pickupLng = double.tryParse(booking.pickupLongitude ?? '');
     final dropLat = double.tryParse(booking.dropLatitude ?? '');
@@ -90,36 +171,64 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
     final pickupPosition = LatLng(pickupLat, pickupLng);
     final List<LatLng> polylineCoordinates = [pickupPosition];
 
-    setState(() {
-      _markers.add(Marker(
-        markerId: const MarkerId('pickup'),
-        position: pickupPosition,
-        infoWindow: const InfoWindow(title: 'Pickup Location'),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      ));
+    void updateState() {
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('pickup'),
+          position: pickupPosition,
+          infoWindow: const InfoWindow(title: 'Pickup Location'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
+        ),
+      );
 
       if (dropLat != null && dropLng != null) {
         final dropPosition = LatLng(dropLat, dropLng);
         polylineCoordinates.add(dropPosition);
-        _markers.add(Marker(
-          markerId: const MarkerId('drop'),
-          position: dropPosition,
-          infoWindow: const InfoWindow(title: 'Drop-off Location'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ));
+        _markers.add(
+          Marker(
+            markerId: const MarkerId('drop'),
+            position: dropPosition,
+            infoWindow: const InfoWindow(title: 'Drop-off Location'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueRed,
+            ),
+          ),
+        );
       }
 
-      _polylines.add(Polyline(
-        polylineId: const PolylineId('route'),
-        points: polylineCoordinates,
-        color: AppColors.primary,
-        width: 5,
-      ));
-    });
+      _polylines.add(
+        Polyline(
+          polylineId: const PolylineId('route'),
+          points: polylineCoordinates,
+          color: AppColors.primary,
+          width: 5,
+        ),
+      );
+    }
+
+    if (notify && mounted) {
+      setState(updateState);
+    } else {
+      updateState();
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final status = _bookingData?.status?.trim().toLowerCase();
+    final isStarted = status == 'started';
+    final isAccepted = status == 'accepted';
+    final otp = isStarted ? _bookingData?.endOtp : _bookingData?.startOtp;
+
     return Scaffold(
       backgroundColor: AppColors.authBackground,
       body: Stack(
@@ -127,9 +236,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
           GoogleMap(
             initialCameraPosition: CameraPosition(
               target: LatLng(
-                double.tryParse(widget.bookingData?.pickupLatitude ?? '0') ??
-                    20.5937,
-                double.tryParse(widget.bookingData?.pickupLongitude ?? '0') ??
+                double.tryParse(_bookingData?.pickupLatitude ?? '0') ?? 20.5937,
+                double.tryParse(_bookingData?.pickupLongitude ?? '0') ??
                     78.9629,
               ),
               zoom: 14,
@@ -219,7 +327,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                       Get.to(
                         () => TrackRideScreen(
                           bookingNo: widget.bookingNo,
-                          bookingData: widget.bookingData,
+                          bookingData: _bookingData,
                         ),
                       );
                     },
@@ -276,208 +384,275 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Center(
-                          child: Container(
-                            width: 52,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: AppColors.border,
-                              borderRadius: BorderRadius.circular(999),
+                        if (_isLoading)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: CircularProgressIndicator(),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Container(
-                              width: 60,
-                              height: 60,
+                          )
+                        else ...[
+                          Center(
+                            child: Container(
+                              width: 52,
+                              height: 5,
                               decoration: BoxDecoration(
-                                color: AppColors.inputFill,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Icon(
-                                Icons.person_rounded,
-                                size: 32,
-                                color: AppColors.primaryDark,
+                                color: AppColors.border,
+                                borderRadius: BorderRadius.circular(999),
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _driverName,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Row(
-                                    children: [
-                                      Icon(
-                                        Icons.star_rounded,
-                                        size: 16,
-                                        color: AppColors.primaryDark,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        '4.9',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textPrimary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Flexible(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    _bookingNoLabel,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _vehicleLabel,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () => Get.snackbar(
-                                  'Calling',
-                                  'Connecting to driver...',
-                                  backgroundColor: AppColors.surface,
-                                ),
-                                icon: const Icon(Icons.call_rounded),
-                                label: const Text(
-                                  'Call',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.inputFill,
-                                  foregroundColor: AppColors.textPrimary,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () => Get.offNamed(
-                                  RouteNames.rideSummary,
-                                  arguments: {
-                                    'booking_no':
-                                        widget.bookingNo ??
-                                        widget.bookingData?.bookingNo,
-                                    'booking_data': widget.bookingData,
-                                  },
-                                ),
-                                icon: const Icon(Icons.flag_rounded),
-                                label: const Text(
-                                  'End Ride',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: AppColors.textPrimary,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 32),
-                        const Divider(color: AppColors.borderSoft),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Trip Route',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        _RouteStep(
-                          icon: Icons.my_location_rounded,
-                          title: 'Pickup',
-                          subtitle: _pickupLabel,
-                        ),
-                        const SizedBox(height: 14),
-                        _RouteStep(
-                          icon: Icons.location_on_rounded,
-                          title: 'Drop',
-                          subtitle: _dropLabel,
-                        ),
-                        const SizedBox(height: 28),
-                        InkWell(
-                          onTap: () => Get.to(() => const SosScreen()),
-                          borderRadius: BorderRadius.circular(18),
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: Colors.red.withValues(alpha: 0.18),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: AppColors.inputFill,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.person_rounded,
+                                  size: 32,
+                                  color: AppColors.primaryDark,
+                                ),
                               ),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.warning_rounded, color: Colors.red),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    'Emergency help and support',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.textPrimary,
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _driverName,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.textPrimary,
+                                      ),
                                     ),
+                                    const SizedBox(height: 4),
+                                    const Row(
+                                      children: [
+                                        Icon(
+                                          Icons.star_rounded,
+                                          size: 16,
+                                          color: AppColors.primaryDark,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          '4.9',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      _bookingNoLabel,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _vehicleLabel,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => Get.snackbar(
+                                    'Calling',
+                                    'Connecting to driver...',
+                                    backgroundColor: AppColors.surface,
+                                  ),
+                                  icon: const Icon(Icons.call_rounded),
+                                  label: const Text(
+                                    'Call',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.inputFill,
+                                    foregroundColor: AppColors.textPrimary,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => Get.offNamed(
+                                    RouteNames.rideSummary,
+                                    arguments: {
+                                      'booking_no':
+                                          widget.bookingNo ??
+                                          _bookingData?.bookingNo,
+                                      'booking_data': _bookingData,
+                                    },
+                                  ),
+                                  icon: const Icon(Icons.flag_rounded),
+                                  label: const Text(
+                                    'End Ride',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: AppColors.textPrimary,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            isStarted
+                                ? 'Share this OTP to End the Ride'
+                                : isAccepted
+                                ? 'Share this OTP with the driver'
+                                : 'Ride OTP',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 24,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.inputFill,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  isStarted ? 'Completion OTP' : 'Ride OTP',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  otp?.trim().isNotEmpty == true
+                                      ? otp!.trim().split('').join('  ')
+                                      : 'Waiting for OTP from the server',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 4,
+                                    color: AppColors.textPrimary,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 32),
+                          const Divider(color: AppColors.borderSoft),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Trip Route',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _RouteStep(
+                            icon: Icons.my_location_rounded,
+                            title: 'Pickup',
+                            subtitle: _pickupLabel,
+                          ),
+                          const SizedBox(height: 14),
+                          _RouteStep(
+                            icon: Icons.location_on_rounded,
+                            title: 'Drop',
+                            subtitle: _dropLabel,
+                          ),
+                          const SizedBox(height: 28),
+                          InkWell(
+                            onTap: () => Get.to(() => const SosScreen()),
+                            borderRadius: BorderRadius.circular(18),
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: Colors.red.withValues(alpha: 0.18),
+                                ),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(
+                                    Icons.warning_rounded,
+                                    color: Colors.red,
+                                  ),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Emergency help and support',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

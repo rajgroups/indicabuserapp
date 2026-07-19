@@ -4,11 +4,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/models/booking_request.dart';
 import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/core/network/client.dart';
 import 'package:indicab/core/network/network_exceptions.dart';
 import 'package:indicab/core/repository/BookingRepository.dart';
 import 'package:indicab/core/routes/names.dart';
+import 'package:indicab/core/services/SocketService.dart';
 
 class FindingDriverScreen extends StatefulWidget {
   const FindingDriverScreen({
@@ -16,11 +18,13 @@ class FindingDriverScreen extends StatefulWidget {
     this.bookingNo,
     this.bookingData,
     this.vehicleType,
+    this.bookingRequest,
   });
 
   final String? bookingNo;
   final BookingDataModel? bookingData;
   final String? vehicleType;
+  final BookingCreateRequest? bookingRequest;
 
   @override
   State<FindingDriverScreen> createState() => _FindingDriverScreenState();
@@ -36,6 +40,10 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
   late final AnimationController _pulseController;
   late final AnimationController _routeController;
   late final AnimationController _searchController;
+
+  String? _localBookingNo;
+  bool _isCreatingBooking = false;
+  String? _bookingError;
 
   @override
   void initState() {
@@ -54,22 +62,20 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
       duration: const Duration(milliseconds: 3200),
     )..repeat();
 
-    if (_bookingNo.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
 
-        _refreshBookingStatus();
-        _statusTimer = Timer.periodic(
-          const Duration(seconds: 3),
-          (_) => _refreshBookingStatus(),
-        );
-      });
-    }
+      if (_bookingNo.isNotEmpty) {
+        _startStatusPolling();
+      } else if (widget.bookingRequest != null) {
+        _createBookingAndStartPolling();
+      }
+    });
   }
 
-  String get _bookingNo => widget.bookingNo?.trim() ?? '';
+  String get _bookingNo => _localBookingNo?.trim() ?? widget.bookingNo?.trim() ?? '';
 
   String get _vehicleTypeLabel {
     final value = widget.vehicleType?.trim();
@@ -109,6 +115,63 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     };
   }
 
+  void _startStatusPolling() {
+    _statusTimer?.cancel();
+    _refreshBookingStatus();
+    _statusTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _refreshBookingStatus(),
+    );
+  }
+
+  Future<void> _createBookingAndStartPolling() async {
+    if (_isCreatingBooking || !mounted) {
+      return;
+    }
+
+    if (widget.bookingRequest == null) {
+      setState(() {
+        _bookingError = 'Booking request details are missing.';
+        _statusText = 'Booking creation failed';
+      });
+      return;
+    }
+
+    setState(() {
+      _isCreatingBooking = true;
+      _bookingError = null;
+      _statusText = 'Creating booking...';
+    });
+
+    try {
+      final socketService = Get.find<SocketService>();
+      await socketService.ensureConnected();
+
+      final response = await _bookingRepository.createBooking(widget.bookingRequest!);
+      if (!response.status || response.data == null) {
+        throw Exception(response.message.isNotEmpty ? response.message : 'Failed to create booking');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _localBookingNo = response.data?.bookingNo;
+        _bookingData = response.data;
+        _isCreatingBooking = false;
+        _statusText = 'Finding your ride...';
+      });
+
+      _startStatusPolling();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isCreatingBooking = false;
+        _bookingError = e.toString();
+        _statusText = 'Booking creation failed';
+      });
+    }
+  }
+
   Future<void> _refreshBookingStatus() async {
     if (_isRefreshing || _bookingNo.isEmpty || !mounted) {
       return;
@@ -133,9 +196,9 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
       final status = booking.status?.trim().toLowerCase();
       if (status == 'accepted') {
         _statusTimer?.cancel();
-        if (Get.currentRoute != RouteNames.rideOtp) {
+        if (Get.currentRoute != RouteNames.activeRide) {
           Get.offAllNamed(
-            RouteNames.rideOtp,
+            RouteNames.activeRide,
             arguments: _bookingArguments(booking),
           );
         }
@@ -291,6 +354,9 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
                     vehicleType: _vehicleTypeLabel,
                     bookingNo: _bookingNo,
                     bookingData: _bookingData,
+                    bookingError: _bookingError,
+                    isCreatingBooking: _isCreatingBooking,
+                    onRetry: _createBookingAndStartPolling,
                     onCancel: () {
                       Get.back();
                     },
@@ -375,6 +441,9 @@ class _SearchCard extends StatelessWidget {
     required this.vehicleType,
     required this.bookingNo,
     required this.bookingData,
+    required this.bookingError,
+    required this.isCreatingBooking,
+    required this.onRetry,
     required this.onCancel,
   });
 
@@ -385,6 +454,9 @@ class _SearchCard extends StatelessWidget {
   final String vehicleType;
   final String bookingNo;
   final BookingDataModel? bookingData;
+  final String? bookingError;
+  final bool isCreatingBooking;
+  final VoidCallback onRetry;
   final VoidCallback onCancel;
 
   @override
@@ -411,31 +483,68 @@ class _SearchCard extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                CustomPaint(
-                  size: const Size(280, 190),
-                  painter: _MapPulsePainter(
-                    pulse: pulse,
-                    route: route,
-                    search: search,
-                    vehicleIcon: vehicleIcon,
-                    vehicleType: vehicleType,
+                if (bookingError == null) ...[
+                  CustomPaint(
+                    size: const Size(280, 190),
+                    painter: _MapPulsePainter(
+                      pulse: pulse,
+                      route: route,
+                      search: search,
+                      vehicleIcon: vehicleIcon,
+                      vehicleType: vehicleType,
+                    ),
                   ),
-                ),
-                Transform.translate(
-                  offset: Offset(
-                    math.cos(route * math.pi * 2) * 50,
-                    math.sin(route * math.pi * 2) * 18,
+                  Transform.translate(
+                    offset: Offset(
+                      math.cos(route * math.pi * 2) * 50,
+                      math.sin(route * math.pi * 2) * 18,
+                    ),
+                    child: _MovingCab(route: route, vehicleIcon: vehicleIcon),
                   ),
-                  child: _MovingCab(route: route, vehicleIcon: vehicleIcon),
-                ),
+                ] else ...[
+                  Container(
+                    width: 98,
+                    height: 98,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x1AEE3B3B),
+                          blurRadius: 20,
+                          offset: Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 74,
+                        height: 74,
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: const Icon(
+                          Icons.warning_amber_rounded,
+                          size: 40,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
-            'Finding your ride',
+          Text(
+            bookingError != null
+                ? 'Booking Failed'
+                : isCreatingBooking
+                    ? 'Requesting ride...'
+                    : 'Finding your ride',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w900,
               color: AppColors.textPrimary,
@@ -443,7 +552,13 @@ class _SearchCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'We are matching your $vehicleType with the nearest available driver.',
+            bookingError != null
+                ? (bookingError!.contains('Exception:')
+                    ? bookingError!.replaceAll('Exception: ', '')
+                    : bookingError!)
+                : isCreatingBooking
+                    ? 'Connecting to servers and sending your request...'
+                    : 'We are matching your $vehicleType with the nearest available driver.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 14,
@@ -496,6 +611,28 @@ class _SearchCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 20),
+          if (bookingError != null) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: onRetry,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Retry Booking',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           SizedBox(
             width: double.infinity,
             child: TextButton(

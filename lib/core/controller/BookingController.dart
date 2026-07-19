@@ -11,7 +11,6 @@ import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/core/utils/Helpers.dart';
 import 'package:indicab/modules/home/HomeController.dart';
 import 'package:indicab/modules/home/models/VehicleModels.dart';
-import 'package:indicab/core/services/SocketService.dart';
 import 'package:indicab/core/network/network_exceptions.dart';
 
 class BookingController extends GetxController {
@@ -19,7 +18,6 @@ class BookingController extends GetxController {
 
   final BookingRepository _repository;
   final HomeController _homeController = Get.find<HomeController>();
-  final SocketService _socketService = Get.find<SocketService>();
 
   final RxBool isSubmitting = false.obs;
   final RxString selectedMode = ''.obs;
@@ -134,6 +132,17 @@ class BookingController extends GetxController {
       scheduledAt: scheduledAt,
     );
 
+    if (bookingMode == 'instant') {
+      Get.toNamed(
+        RouteNames.findingDriver,
+        arguments: <String, dynamic>{
+          'vehicle_type': option.label,
+          'booking_request': request,
+        },
+      );
+      return;
+    }
+
     try {
       isSubmitting.value = true;
       Helpers.loading();
@@ -151,19 +160,6 @@ class BookingController extends GetxController {
               ? response.message
               : 'Unable to create booking.',
           backgroundColor: Colors.white,
-        );
-        return;
-      }
-
-      if (bookingMode == 'instant') {
-        await _socketService.ensureConnected();
-        Get.toNamed(
-          RouteNames.findingDriver,
-          arguments: {
-            'vehicle_type': option.label,
-            'booking_no': response.data?.bookingNo,
-            'booking_data': response.data,
-          },
         );
         return;
       }
@@ -209,7 +205,7 @@ class BookingController extends GetxController {
       }
 
       Get.offNamed(
-        RouteNames.rideOtp,
+        RouteNames.activeRide,
         arguments: {'booking_no': booking.bookingNo, 'booking_data': booking},
       );
     } catch (error) {
@@ -267,7 +263,7 @@ class BookingController extends GetxController {
     }
 
     return BookingCreateRequest(
-      vehicleCategoryId: option.id,
+      vehicleCategoryId: subCategory.id,
       bookingMode: bookingMode,
       driverId: null,
       vehicleId: null,

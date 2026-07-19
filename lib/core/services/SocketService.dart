@@ -262,8 +262,8 @@ class SocketService extends GetxService with WidgetsBindingObserver {
       if (bookingData != null) 'booking_data': bookingData,
     };
 
-    if (status == 'accepted' && Get.currentRoute != RouteNames.rideOtp) {
-      Get.offAllNamed(RouteNames.rideOtp, arguments: arguments);
+    if (status == 'accepted' && Get.currentRoute != RouteNames.activeRide) {
+      Get.offAllNamed(RouteNames.activeRide, arguments: arguments);
       return;
     }
 

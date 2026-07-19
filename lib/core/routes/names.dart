@@ -4,7 +4,6 @@ class RouteNames {
   static const home = '/home';
   static const locationSearch = '/location-search';
   static const findingDriver = '/finding-driver';
-  static const rideOtp = '/ride-otp';
   static const activeRide = '/active-ride';
   static const rideSummary = '/ride-summary';
   static const rideHistory = '/ride-history';
