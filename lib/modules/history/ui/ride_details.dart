@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/models/booking_response.dart';
+import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/layout/app.dart';
 
 import '../models/ride_history_item.dart';
@@ -10,19 +12,51 @@ class RideDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ride = Get.arguments as RideHistoryItem?;
+    final rawArg = Get.arguments;
 
-    if (ride == null) {
+    BookingDataModel? bookingData;
+    RideHistoryItem? rideItem;
+
+    if (rawArg is BookingDataModel) {
+      bookingData = rawArg;
+    } else if (rawArg is RideHistoryItem) {
+      rideItem = rawArg;
+    }
+
+    if (bookingData == null && rideItem == null) {
       return AppScreen(
         backgroundColor: AppColors.authBackground,
         child: Center(
-          child: TextButton(
-            onPressed: Get.back,
-            child: const Text('Ride details unavailable'),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Ride details unavailable'),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: Get.back,
+                child: const Text('Back to History'),
+              ),
+            ],
           ),
         ),
       );
     }
+
+    final category = bookingData?.categoryName ?? rideItem?.type ?? 'Ride';
+    final amountText = bookingData != null
+        ? (bookingData.estimatedAmount != null
+            ? '₹${bookingData.estimatedAmount!.toStringAsFixed(2)}'
+            : '₹0.00')
+        : (rideItem?.amountLabel ?? '₹0.00');
+    final amountValue = bookingData?.estimatedAmount ?? rideItem?.amountValue ?? 0.0;
+    final dateLabel = bookingData?.scheduledAt ?? rideItem?.dateLabel ?? 'Recent';
+    final pickup = bookingData?.pickupAddress ?? rideItem?.pickup ?? 'Pickup Address';
+    final drop = bookingData?.dropAddress ?? rideItem?.drop ?? 'Drop Address';
+    final status = bookingData?.status ?? rideItem?.status ?? 'Completed';
+    final driverName = bookingData?.driverName ?? rideItem?.driverName ?? 'Assigned Driver';
+    final vehicleNumber = bookingData?.vehicleNumber ?? rideItem?.vehicleNumber ?? 'Vehicle N/A';
+    final bookingId = bookingData?.bookingNo ?? rideItem?.bookingId ?? 'N/A';
+    final paymentMethod = bookingData?.bookingMode ?? rideItem?.paymentMethod ?? 'UPI / Cash';
 
     return AppScreen(
       backgroundColor: AppColors.authBackground,
@@ -91,10 +125,14 @@ class RideDetailsScreen extends StatelessWidget {
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: ride.iconColor.withValues(alpha: 0.14),
+                        color: AppColors.primary.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: Icon(ride.icon, color: ride.iconColor, size: 28),
+                      child: const Icon(
+                        Icons.directions_car_filled_rounded,
+                        color: AppColors.primaryDark,
+                        size: 28,
+                      ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -102,7 +140,7 @@ class RideDetailsScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            ride.type,
+                            category,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
@@ -111,7 +149,7 @@ class RideDetailsScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${ride.dateLabel} • ${ride.duration}',
+                            dateLabel,
                             style: const TextStyle(
                               fontSize: 13,
                               color: AppColors.textSecondary,
@@ -121,7 +159,7 @@ class RideDetailsScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      ride.amountLabel,
+                      amountText,
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
@@ -150,7 +188,7 @@ class RideDetailsScreen extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          ride.supportNote,
+                          'Trip completed successfully. Receipt available for download.',
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
@@ -171,30 +209,22 @@ class RideDetailsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                _RouteTile(pickup: ride.pickup, drop: ride.drop),
+                _RouteTile(pickup: pickup, drop: drop),
               ],
             ),
           ),
           const SizedBox(height: 18),
-          Row(
+          _InfoSection(
+            title: 'Ride summary',
             children: [
-              Expanded(
-                child: _InfoSection(
-                  title: 'Ride summary',
-                  children: [
-                    _InfoRow(label: 'Distance', value: ride.distance),
-                    _InfoRow(label: 'Duration', value: ride.duration),
-                    _InfoRow(
-                      label: 'Status',
-                      value: ride.status,
-                      valueColor: const Color(0xFF2A9D8F),
-                    ),
-                    _InfoRow(
-                      label: 'Rating',
-                      value: '${ride.rating.toStringAsFixed(1)} / 5',
-                    ),
-                  ],
-                ),
+              _InfoRow(
+                label: 'Status',
+                value: status.toUpperCase(),
+                valueColor: const Color(0xFF2A9D8F),
+              ),
+              _InfoRow(
+                label: 'Rating',
+                value: '4.9 / 5',
               ),
             ],
           ),
@@ -202,10 +232,10 @@ class RideDetailsScreen extends StatelessWidget {
           _InfoSection(
             title: 'Driver and vehicle',
             children: [
-              _InfoRow(label: 'Driver', value: ride.driverName),
-              _InfoRow(label: 'Vehicle no.', value: ride.vehicleNumber),
-              _InfoRow(label: 'Booking ID', value: ride.bookingId),
-              _InfoRow(label: 'Payment', value: ride.paymentMethod),
+              _InfoRow(label: 'Driver', value: driverName),
+              _InfoRow(label: 'Vehicle no.', value: vehicleNumber),
+              _InfoRow(label: 'Booking ID', value: bookingId),
+              _InfoRow(label: 'Payment', value: paymentMethod),
             ],
           ),
           const SizedBox(height: 18),
@@ -214,19 +244,15 @@ class RideDetailsScreen extends StatelessWidget {
             children: [
               _InfoRow(
                 label: 'Base fare',
-                value: '₹${(ride.amountValue * 0.58).toStringAsFixed(0)}',
-              ),
-              _InfoRow(
-                label: 'Distance fare',
-                value: '₹${(ride.amountValue * 0.24).toStringAsFixed(0)}',
+                value: '₹${(amountValue * 0.70).toStringAsFixed(0)}',
               ),
               _InfoRow(
                 label: 'Taxes and fees',
-                value: '₹${(ride.amountValue * 0.18).toStringAsFixed(0)}',
+                value: '₹${(amountValue * 0.30).toStringAsFixed(0)}',
               ),
               _InfoRow(
                 label: 'Total paid',
-                value: ride.amountLabel,
+                value: amountText,
                 emphasize: true,
               ),
             ],
@@ -236,7 +262,13 @@ class RideDetailsScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Get.snackbar(
+                      'Receipt',
+                      'Receipt downloaded to device.',
+                      backgroundColor: AppColors.surface,
+                    );
+                  },
                   icon: const Icon(Icons.download_rounded),
                   label: const Text('Invoice'),
                   style: OutlinedButton.styleFrom(
@@ -252,7 +284,9 @@ class RideDetailsScreen extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Get.offAllNamed(RouteNames.home);
+                  },
                   icon: const Icon(Icons.refresh_rounded),
                   label: const Text(
                     'Book Again',

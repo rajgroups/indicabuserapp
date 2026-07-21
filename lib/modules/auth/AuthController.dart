@@ -113,6 +113,21 @@ class AuthController extends GetxController {
     }
   }
 
+  Future<void> logout() async {
+    try {
+      isLoading.value = true;
+      Helpers.loading();
+      await _service.logout();
+      Helpers.close();
+      Get.offAllNamed(RouteNames.login);
+    } catch (e) {
+      Helpers.close();
+      Get.offAllNamed(RouteNames.login);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   @override
   void onClose() {
     mobileController.dispose();

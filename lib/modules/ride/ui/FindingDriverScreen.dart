@@ -62,6 +62,10 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
       duration: const Duration(milliseconds: 3200),
     )..repeat();
 
+    // Listen for booking status updates via socket (primary mechanism)
+    final socketService = Get.find<SocketService>();
+    socketService.on('booking_status', _onBookingStatusSocket);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -129,10 +133,73 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
   }
 
   void _handleRetry() {
-    if (_bookingNo.isNotEmpty) {
+    // Always create a fresh booking on retry (do not reuse expired booking)
+    if (widget.bookingRequest != null) {
+      _createBookingAndStartPolling();
+    } else if (_bookingNo.isNotEmpty) {
       _retryExistingBooking();
     } else {
       _createBookingAndStartPolling();
+    }
+  }
+
+  /// Handle booking status updates received via WebSocket.
+  void _onBookingStatusSocket(dynamic data) {
+    if (data is! Map<String, dynamic> || !mounted) return;
+
+    final booking = data['booking'];
+    if (booking is! Map<String, dynamic>) return;
+
+    final bookingNo = booking['booking_no']?.toString();
+    if (bookingNo != null && bookingNo.isNotEmpty && bookingNo != _bookingNo) {
+      return; // Not our booking
+    }
+
+    final status = booking['status']?.toString().trim().toLowerCase();
+    final bookingModel = BookingDataModel.fromJson(booking);
+
+    if (status == 'no_driver_available' || status == 'expired') {
+      _statusTimer?.cancel();
+      if (mounted) {
+        setState(() {
+          _bookingData = bookingModel;
+          _statusText = 'No drivers available';
+          _bookingError = 'No drivers accepted your booking. Please try again.';
+        });
+      }
+      return;
+    }
+
+    if (status == 'accepted' || status == 'driver_assigned') {
+      _statusTimer?.cancel();
+      if (Get.currentRoute != RouteNames.activeRide) {
+        Get.offAllNamed(
+          RouteNames.activeRide,
+          arguments: _bookingArguments(bookingModel),
+        );
+      }
+      return;
+    }
+
+    if (status == 'started') {
+      _statusTimer?.cancel();
+      if (Get.currentRoute != RouteNames.activeRide) {
+        Get.offAllNamed(
+          RouteNames.activeRide,
+          arguments: _bookingArguments(bookingModel),
+        );
+      }
+      return;
+    }
+
+    if (status == 'completed') {
+      _statusTimer?.cancel();
+      if (Get.currentRoute != RouteNames.rideSummary) {
+        Get.offAllNamed(
+          RouteNames.rideSummary,
+          arguments: _bookingArguments(bookingModel),
+        );
+      }
     }
   }
 
@@ -307,6 +374,8 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     _pulseController.dispose();
     _routeController.dispose();
     _searchController.dispose();
+    final socketService = Get.find<SocketService>();
+    socketService.off('booking_status', _onBookingStatusSocket);
     super.dispose();
   }
 

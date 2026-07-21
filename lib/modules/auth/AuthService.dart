@@ -51,4 +51,19 @@ class AuthService {
 
     return response;
   }
+
+  Future<void> logout() async {
+    try {
+      await _repo.logout();
+    } catch (e) {
+      print('AuthService.logout backend error: $e');
+    } finally {
+      await _storage.delete(StorageKeys.token);
+      await GetStorage().remove(StorageKeys.token);
+      _client.revokeTokens();
+      if (Get.isRegistered<SocketService>()) {
+        Get.find<SocketService>().disconnect();
+      }
+    }
+  }
 }

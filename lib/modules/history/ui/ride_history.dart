@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/layout/app.dart';
 
-import '../data/ride_history_data.dart';
-import '../models/ride_history_item.dart';
+import '../HistoryController.dart';
 import 'ride_history_filter.dart';
-import 'invoice_screen.dart';
 
 class RideHistoryScreen extends StatefulWidget {
   const RideHistoryScreen({super.key});
@@ -17,6 +16,9 @@ class RideHistoryScreen extends StatefulWidget {
 }
 
 class _RideHistoryScreenState extends State<RideHistoryScreen> {
+  late final HistoryController _controller;
+  final ScrollController _scrollController = ScrollController();
+
   static const List<String> _dateFilters = [
     'All',
     'Today',
@@ -24,379 +26,248 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> {
     'This Month',
   ];
 
-  late final List<String> _typeFilters;
-  late final List<String> _paymentFilters;
-  late final List<String> _statusFilters;
-  String _selectedDateFilter = 'All';
-  String _selectedTypeFilter = 'All';
-  String _selectedPaymentFilter = 'All';
-  String _selectedStatusFilter = 'All';
-  RangeValues _selectedPriceRange = const RangeValues(0, 2000);
-  String _selectedSortBy = 'Date: Newest';
+  static const List<String> _statusTabs = [
+    'All',
+    'Ongoing',
+    'Completed',
+    'Cancelled',
+    'Missed',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _typeFilters = [
-      'All',
-      ...{for (final ride in rideHistory) ride.type},
-    ];
-    _paymentFilters = [
-      'All',
-      ...{for (final ride in rideHistory) ride.paymentMethod},
-    ];
-    _statusFilters = [
-      'All',
-      ...{for (final ride in rideHistory) ride.status},
-    ];
+    _controller = Get.put(HistoryController());
+    _scrollController.addListener(_onScroll);
   }
 
-  List<RideHistoryItem> get _filteredRides {
-    final filtered = rideHistory.where((ride) {
-      final dateMatch =
-          _selectedDateFilter == 'All' || ride.periodTag == _selectedDateFilter;
-      final typeMatch =
-          _selectedTypeFilter == 'All' || ride.type == _selectedTypeFilter;
-      final paymentMatch =
-          _selectedPaymentFilter == 'All' ||
-          ride.paymentMethod == _selectedPaymentFilter;
-      final statusMatch =
-          _selectedStatusFilter == 'All' || ride.status == _selectedStatusFilter;
-      final priceMatch = ride.amountValue >= _selectedPriceRange.start &&
-          ride.amountValue <= _selectedPriceRange.end;
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
 
-      return dateMatch && typeMatch && paymentMatch && statusMatch && priceMatch;
-    }).toList();
-
-    if (_selectedSortBy == 'Price: High to Low') {
-      filtered.sort((a, b) => b.amountValue.compareTo(a.amountValue));
-    } else if (_selectedSortBy == 'Price: Low to High') {
-      filtered.sort((a, b) => a.amountValue.compareTo(b.amountValue));
-    } else if (_selectedSortBy == 'Date: Oldest') {
-      return filtered.reversed.toList();
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _controller.loadMore();
     }
-
-    return filtered;
-  }
-
-  int get _activeFilterCount => [
-    _selectedDateFilter != 'All',
-    _selectedTypeFilter != 'All',
-    _selectedPaymentFilter != 'All',
-        _selectedStatusFilter != 'All',
-        _selectedPriceRange.start > 0 || _selectedPriceRange.end < 2000,
-        _selectedSortBy != 'Date: Newest',
-  ].where((isActive) => isActive).length;
-
-  void _resetFilters() {
-    setState(() {
-      _selectedDateFilter = 'All';
-      _selectedTypeFilter = 'All';
-      _selectedPaymentFilter = 'All';
-      _selectedStatusFilter = 'All';
-      _selectedPriceRange = const RangeValues(0, 2000);
-      _selectedSortBy = 'Date: Newest';
-    });
   }
 
   Future<void> _openFilters() async {
     final result = await Get.to<RideHistoryFilterResult>(
       () => RideHistoryFilterScreen(
         dateFilters: _dateFilters,
-        typeFilters: _typeFilters,
-        paymentFilters: _paymentFilters,
-        initialDateFilter: _selectedDateFilter,
-        initialTypeFilter: _selectedTypeFilter,
-        initialPaymentFilter: _selectedPaymentFilter,
-        statusFilters: _statusFilters,
-        initialStatusFilter: _selectedStatusFilter,
-        initialPriceRange: _selectedPriceRange,
-        initialSortBy: _selectedSortBy,
+        typeFilters: const ['All', 'Cab', 'Auto', 'Bike', 'Parcel'],
+        paymentFilters: const ['All', 'cash', 'upi', 'card', 'wallet'],
+        initialDateFilter: _controller.selectedDateFilter.value,
+        initialTypeFilter: _controller.selectedTypeFilter.value,
+        initialPaymentFilter: _controller.selectedPaymentFilter.value,
+        statusFilters: _statusTabs,
+        initialStatusFilter: _controller.selectedStatusTab.value,
+        initialPriceRange: _controller.selectedPriceRange.value,
+        initialSortBy: _controller.selectedSortBy.value,
       ),
       fullscreenDialog: true,
     );
 
     if (result == null) return;
 
-    setState(() {
-      _selectedDateFilter = result.dateFilter;
-      _selectedTypeFilter = result.typeFilter;
-      _selectedPaymentFilter = result.paymentFilter;
-      _selectedStatusFilter = result.statusFilter;
-      _selectedPriceRange = result.priceRange;
-      _selectedSortBy = result.sortBy;
-    });
+    _controller.selectedDateFilter.value = result.dateFilter;
+    _controller.selectedTypeFilter.value = result.typeFilter;
+    _controller.selectedPaymentFilter.value = result.paymentFilter;
+    _controller.selectedPriceRange.value = result.priceRange;
+    _controller.selectedSortBy.value = result.sortBy;
+
+    if (result.statusFilter != _controller.selectedStatusTab.value) {
+      _controller.selectedStatusTab.value = result.statusFilter;
+    }
+
+    _controller.fetchHistory(refresh: true);
+  }
+
+  void _onBookingTap(BookingDataModel booking) {
+    final status = booking.status?.trim().toLowerCase() ?? '';
+
+    // 1. Ongoing Rides -> Navigate to ActiveRideScreen or FindingDriverScreen
+    if (status == 'accepted' || status == 'arrived' || status == 'started') {
+      Get.offAllNamed(
+        RouteNames.activeRide,
+        arguments: <String, dynamic>{
+          'booking_no': booking.bookingNo,
+          'booking_data': booking,
+        },
+      );
+      return;
+    }
+
+    if (status == 'pending' || status == 'requested') {
+      Get.offAllNamed(
+        RouteNames.findingDriver,
+        arguments: <String, dynamic>{
+          'booking_no': booking.bookingNo,
+          'booking_data': booking,
+          'vehicle_type': booking.categoryName,
+        },
+      );
+      return;
+    }
+
+    // 2. Completed / Cancelled / Missed -> Ride Details
+    Get.toNamed(RouteNames.rideDetails, arguments: booking);
   }
 
   @override
   Widget build(BuildContext context) {
-    final filteredRides = _filteredRides;
-    final totalSpent = filteredRides.fold<double>(
-      0,
-      (sum, ride) => sum + ride.amountValue,
-    );
-    final averageRating = filteredRides.isEmpty
-        ? 0.0
-        : filteredRides.fold<double>(0, (sum, ride) => sum + ride.rating) /
-              filteredRides.length;
-
     return AppScreen(
       backgroundColor: AppColors.authBackground,
       child: Column(
         children: [
-          _HistoryHeader(
-            onBack: Get.back,
-            onOpenFilters: _openFilters,
-            activeFilterCount: _activeFilterCount,
-          ),
-          Expanded(
-            child: ListView(
+          // Header
+          Obx(() => _HistoryHeader(
+                onBack: Get.back,
+                onOpenFilters: _openFilters,
+                activeFilterCount: _controller.activeFilterCount,
+              )),
+
+          // Status Filter Tabs (All, Ongoing, Completed, Cancelled, Missed)
+          Container(
+            color: AppColors.surface,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
-              children: [
-                _StatsCard(
-                  totalRides: filteredRides.length,
-                  totalSpent: totalSpent,
-                  averageRating: averageRating,
-                ),
-                const SizedBox(height: 18),
-                _FilterSummaryCard(
-                  activeFilterCount: _activeFilterCount,
-                  selectedDateFilter: _selectedDateFilter,
-                  selectedTypeFilter: _selectedTypeFilter,
-                  selectedPaymentFilter: _selectedPaymentFilter,
-                  selectedStatusFilter: _selectedStatusFilter,
-                  selectedPriceRange: _selectedPriceRange,
-                  selectedSortBy: _selectedSortBy,
-                  onReset: _resetFilters,
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  'Recent trips',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Filter by date, ride type or payment method, then open any trip for full details.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (filteredRides.isEmpty)
-                  _EmptyFilterState(
-                    onReset: _resetFilters,
-                  )
-                else
-                  ...filteredRides.map(
-                    (ride) => Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: _RideHistoryCard(ride: ride),
-                    ),
-                  ),
-              ],
+              child: Obx(() => Row(
+                    children: _statusTabs.map((tab) {
+                      final selected = _controller.selectedStatusTab.value == tab;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(
+                            tab,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: selected
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                          selected: selected,
+                          onSelected: (_) => _controller.changeStatusTab(tab),
+                          selectedColor: AppColors.primary,
+                          backgroundColor: AppColors.inputFill,
+                          side: BorderSide(
+                            color: selected
+                                ? AppColors.primaryDark
+                                : AppColors.borderSoft,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  )),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
+          const Divider(height: 1, color: AppColors.borderSoft),
 
-class _FilterSummaryCard extends StatelessWidget {
-  const _FilterSummaryCard({
-    required this.activeFilterCount,
-    required this.selectedDateFilter,
-    required this.selectedTypeFilter,
-    required this.selectedPaymentFilter,
-    required this.selectedStatusFilter,
-    required this.selectedPriceRange,
-    required this.selectedSortBy,
-    required this.onReset,
-  });
+          // Main List View with Pull To Refresh
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => _controller.fetchHistory(refresh: true),
+              color: AppColors.primaryDark,
+              child: Obx(() {
+                if (_controller.isLoading.value) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-  final int activeFilterCount;
-  final String selectedDateFilter;
-  final String selectedTypeFilter;
-  final String selectedPaymentFilter;
-  final String selectedStatusFilter;
-  final RangeValues selectedPriceRange;
-  final String selectedSortBy;
-  final VoidCallback onReset;
+                final bookingsList = _controller.bookings;
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.borderSoft),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F000000),
-            blurRadius: 18,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Applied filters',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
+                return ListView.builder(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
-                ),
-              ),
-              if (activeFilterCount > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '$activeFilterCount active',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Tap the filter icon in the header to refine rides by date, vehicle type, or payment method.',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              if (selectedSortBy != 'Date: Newest')
-                _AppliedFilterChip(
-                  label: 'Sort',
-                  value: selectedSortBy,
-                  icon: Icons.sort_rounded,
-                ),
-              if (selectedDateFilter != 'All')
-                _AppliedFilterChip(
-                  label: 'Date',
-                  value: selectedDateFilter,
-                  icon: Icons.calendar_month_rounded,
-                ),
-              if (selectedTypeFilter != 'All')
-                _AppliedFilterChip(
-                  label: 'Ride',
-                  value: selectedTypeFilter,
-                  icon: Icons.local_taxi_rounded,
-                ),
-              if (selectedStatusFilter != 'All')
-                _AppliedFilterChip(
-                  label: 'Status',
-                  value: selectedStatusFilter,
-                  icon: Icons.data_usage_rounded,
-                ),
-              if (selectedPaymentFilter != 'All')
-                _AppliedFilterChip(
-                  label: 'Payment',
-                  value: selectedPaymentFilter,
-                  icon: Icons.account_balance_wallet_rounded,
-                ),
-              if (selectedPriceRange.start > 0 || selectedPriceRange.end < 2000)
-                _AppliedFilterChip(
-                  label: 'Price',
-                  value: '₹${selectedPriceRange.start.toInt()} - ₹${selectedPriceRange.end.toInt()}',
-                  icon: Icons.payments_rounded,
-                ),
-              if (activeFilterCount == 0)
-                const _AppliedFilterChip(
-                  label: 'Filters',
-                  value: 'None active',
-                  icon: Icons.tune_rounded,
-                ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          if (activeFilterCount > 0)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: onReset,
-                icon: const Icon(Icons.restart_alt_rounded, size: 18),
-                label: const Text('Clear filters'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primaryDark,
-                  padding: EdgeInsets.zero,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                  itemCount: bookingsList.isEmpty
+                      ? 3
+                      : bookingsList.length + 3 + (_controller.isLoadingMore.value ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return _StatsCard(
+                        totalRides: _controller.totalRides,
+                        totalSpent: _controller.totalSpent,
+                        averageRating: _controller.averageRating,
+                      );
+                    }
 
-class _AppliedFilterChip extends StatelessWidget {
-  const _AppliedFilterChip({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
+                    if (index == 1) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 16, bottom: 12),
+                        child: _FilterSummaryCard(
+                          activeFilterCount: _controller.activeFilterCount,
+                          selectedDateFilter: _controller.selectedDateFilter.value,
+                          selectedTypeFilter: _controller.selectedTypeFilter.value,
+                          selectedPaymentFilter: _controller.selectedPaymentFilter.value,
+                          selectedStatusFilter: _controller.selectedStatusTab.value,
+                          selectedPriceRange: _controller.selectedPriceRange.value,
+                          selectedSortBy: _controller.selectedSortBy.value,
+                          onReset: _controller.resetFilters,
+                        ),
+                      );
+                    }
 
-  final String label;
-  final String value;
-  final IconData icon;
+                    if (index == 2) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Trips (${_controller.selectedStatusTab.value})',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Tap any trip to view active tracking or trip summary.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDefault = value == 'None active';
+                    if (bookingsList.isEmpty) {
+                      return _EmptyFilterState(onReset: _controller.resetFilters);
+                    }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: isDefault
-            ? AppColors.inputFill
-            : AppColors.primary.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDefault ? AppColors.borderSoft : AppColors.primaryDark,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: AppColors.textSecondary),
-          const SizedBox(width: 8),
-          Text(
-            '$label: $value',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+                    final bookingIndex = index - 3;
+                    if (bookingIndex < bookingsList.length) {
+                      final booking = bookingsList[bookingIndex];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _RideBookingCard(
+                          booking: booking,
+                          onTap: () => _onBookingTap(booking),
+                        ),
+                      );
+                    }
+
+                    // Loading indicator for pagination
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  },
+                );
+              }),
             ),
           ),
         ],
@@ -449,7 +320,7 @@ class _HistoryHeader extends StatelessWidget {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Your completed trips and receipts',
+                  'Your ongoing & past trips',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -499,6 +370,143 @@ class _HistoryHeader extends StatelessWidget {
   }
 }
 
+class _FilterSummaryCard extends StatelessWidget {
+  const _FilterSummaryCard({
+    required this.activeFilterCount,
+    required this.selectedDateFilter,
+    required this.selectedTypeFilter,
+    required this.selectedPaymentFilter,
+    required this.selectedStatusFilter,
+    required this.selectedPriceRange,
+    required this.selectedSortBy,
+    required this.onReset,
+  });
+
+  final int activeFilterCount;
+  final String selectedDateFilter;
+  final String selectedTypeFilter;
+  final String selectedPaymentFilter;
+  final String selectedStatusFilter;
+  final RangeValues selectedPriceRange;
+  final String selectedSortBy;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.borderSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Applied filters',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              if (activeFilterCount > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$activeFilterCount active',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _AppliedFilterChip(label: 'Status', value: selectedStatusFilter, icon: Icons.data_usage_rounded),
+              if (selectedSortBy != 'Date: Newest')
+                _AppliedFilterChip(label: 'Sort', value: selectedSortBy, icon: Icons.sort_rounded),
+              if (selectedDateFilter != 'All')
+                _AppliedFilterChip(label: 'Date', value: selectedDateFilter, icon: Icons.calendar_month_rounded),
+              if (selectedPaymentFilter != 'All')
+                _AppliedFilterChip(label: 'Payment', value: selectedPaymentFilter, icon: Icons.account_balance_wallet_rounded),
+            ],
+          ),
+          if (activeFilterCount > 0) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onReset,
+                icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                label: const Text('Clear filters'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primaryDark,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AppliedFilterChip extends StatelessWidget {
+  const _AppliedFilterChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primaryDark),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            '$label: $value',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyFilterState extends StatelessWidget {
   const _EmptyFilterState({required this.onReset});
 
@@ -530,7 +538,7 @@ class _EmptyFilterState extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           const Text(
-            'No rides match these filters',
+            'No trips found',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -539,7 +547,7 @@ class _EmptyFilterState extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Try another date, ride type or payment method.',
+            'Try selecting another filter or create a new booking.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
@@ -631,24 +639,89 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _RideHistoryCard extends StatelessWidget {
-  const _RideHistoryCard({required this.ride});
+class _RideBookingCard extends StatelessWidget {
+  const _RideBookingCard({
+    required this.booking,
+    required this.onTap,
+  });
 
-  final RideHistoryItem ride;
+  final BookingDataModel booking;
+  final VoidCallback onTap;
+
+  Color get _statusColor {
+    final status = booking.status?.trim().toLowerCase() ?? '';
+    switch (status) {
+      case 'accepted':
+      case 'arrived':
+      case 'started':
+      case 'pending':
+      case 'requested':
+        return Colors.blue;
+      case 'completed':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.red;
+      case 'expired':
+      case 'no_driver_available':
+        return Colors.orange;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  String get _statusLabel {
+    final status = booking.status?.trim().toLowerCase() ?? '';
+    switch (status) {
+      case 'accepted':
+        return 'Driver Accepted';
+      case 'arrived':
+        return 'Driver Arrived';
+      case 'started':
+        return 'Ride Started';
+      case 'pending':
+      case 'requested':
+        return 'Finding Driver';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'expired':
+      case 'no_driver_available':
+        return 'Missed (No Driver)';
+      default:
+        return status;
+    }
+  }
+
+  bool get _isOngoing {
+    final status = booking.status?.trim().toLowerCase() ?? '';
+    return ['accepted', 'arrived', 'started', 'pending', 'requested'].contains(status);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final category = booking.categoryName ?? 'Ride';
+    final amount = booking.estimatedAmount != null
+        ? '₹${booking.estimatedAmount!.toStringAsFixed(0)}'
+        : '₹0';
+    final pickup = booking.pickupAddress ?? 'Pickup Location';
+    final drop = booking.dropAddress ?? 'Drop Location';
+    final bookingNo = booking.bookingNo ?? '';
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
-        onTap: () => Get.toNamed(RouteNames.rideDetails, arguments: ride),
+        onTap: onTap,
         child: Ink(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.borderSoft),
+            border: Border.all(
+              color: _isOngoing ? AppColors.primaryDark : AppColors.borderSoft,
+              width: _isOngoing ? 1.5 : 1.0,
+            ),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x12000000),
@@ -666,10 +739,13 @@ class _RideHistoryCard extends StatelessWidget {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: ride.iconColor.withValues(alpha: 0.14),
+                      color: _statusColor.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Icon(ride.icon, color: ride.iconColor),
+                    child: Icon(
+                      _isOngoing ? Icons.directions_car_filled_rounded : Icons.local_taxi_rounded,
+                      color: _statusColor,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -680,7 +756,7 @@ class _RideHistoryCard extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                ride.type,
+                                category,
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
@@ -689,7 +765,7 @@ class _RideHistoryCard extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              ride.amountLabel,
+                              amount,
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
@@ -699,22 +775,34 @@ class _RideHistoryCard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          crossAxisAlignment: WrapCrossAlignment.center,
+                        Row(
                           children: [
-                            _MetaChip(
-                              icon: Icons.schedule_rounded,
-                              label: ride.dateLabel,
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: _statusColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                _statusLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: _statusColor,
+                                ),
+                              ),
                             ),
-                            _MetaChip(
-                              icon: Icons.route_rounded,
-                              label: ride.distance,
-                            ),
-                            _MetaChip(
-                              icon: Icons.star_rounded,
-                              label: ride.rating.toStringAsFixed(1),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '#$bookingNo',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -722,9 +810,10 @@ class _RideHistoryCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppColors.textMuted,
+                  Icon(
+                    _isOngoing ? Icons.arrow_forward_ios_rounded : Icons.chevron_right_rounded,
+                    color: _isOngoing ? AppColors.primaryDark : AppColors.textMuted,
+                    size: _isOngoing ? 16 : 24,
                   ),
                 ],
               ),
@@ -759,7 +848,7 @@ class _RideHistoryCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          ride.pickup,
+                          pickup,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -770,7 +859,7 @@ class _RideHistoryCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 22),
                         Text(
-                          ride.drop,
+                          drop,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -784,76 +873,29 @@ class _RideHistoryCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              const Divider(color: AppColors.borderSoft, height: 1),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2A9D8F).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      ride.status,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF2A9D8F),
-                      ),
+              if (_isOngoing) ...[
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Tap to view live tracking →',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryDark,
                     ),
                   ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: () => Get.to(() => InvoiceScreen(ride: ride)),
-                    icon: const Icon(Icons.download_rounded, size: 16),
-                    label: const Text('Invoice'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.primaryDark,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.inputFill,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: AppColors.textSecondary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
       ),
     );
   }

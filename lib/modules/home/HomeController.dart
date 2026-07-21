@@ -10,6 +10,8 @@ import 'package:indicab/core/constants/Keys.dart';
 import 'package:indicab/core/network/client.dart';
 import 'package:indicab/core/repository/BookingRepository.dart';
 import 'package:indicab/core/services/SecureStorageService.dart';
+import 'package:indicab/core/services/LocationService.dart';
+import 'package:indicab/core/services/PolylineService.dart';
 import 'package:indicab/core/services/SocketService.dart';
 import 'package:indicab/core/services/StorageService.dart';
 import 'package:indicab/core/routes/names.dart';
@@ -52,6 +54,9 @@ class HomeController extends GetxController {
   RxString dropAddress = ''.obs;
 
   RxSet<Marker> markers = <Marker>{}.obs;
+  RxSet<Polyline> polylines = <Polyline>{}.obs;
+
+  final PolylineService _polylineService = PolylineService();
 
   final TextEditingController originController = TextEditingController();
   final TextEditingController destController = TextEditingController();
@@ -107,7 +112,9 @@ class HomeController extends GetxController {
     pickupPoint.value = latlng;
     pickuplocation.value = latlng;
     pickupAddress.value = place.description ?? '';
+    originController.text = pickupAddress.value;
     _updateMarkers();
+    await updateRoutePolyline();
     await _focusMapOnSelectedLocations();
   }
 
@@ -116,8 +123,57 @@ class HomeController extends GetxController {
 
     droplocation.value = latlng;
     dropAddress.value = place.description ?? '';
+    destController.text = dropAddress.value;
     _updateMarkers();
+    await updateRoutePolyline();
     await _focusMapOnSelectedLocations();
+  }
+
+  Future<void> updateRoutePolyline({bool forceRefresh = false}) async {
+    final pickup = pickuplocation.value ?? pickupPoint.value;
+    final drop = droplocation.value;
+
+    if (pickup != null && drop != null) {
+      final routeResult = await _polylineService.fetchRoute(
+        pickup,
+        drop,
+        forceRefresh: forceRefresh,
+      );
+      if (routeResult.points.isNotEmpty) {
+        polylines.assignAll({
+          Polyline(
+            polylineId: const PolylineId('active_route'),
+            points: routeResult.points,
+            color: const Color(0xFFFFB800),
+            width: 5,
+            jointType: JointType.round,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+          ),
+        });
+        polylines.refresh();
+      } else {
+        polylines.clear();
+        polylines.refresh();
+      }
+    } else {
+      polylines.clear();
+      polylines.refresh();
+    }
+  }
+
+  Future<void> launchExternalNavigation() async {
+    final pickup = pickuplocation.value ?? pickupPoint.value;
+    final drop = droplocation.value;
+
+    if (drop != null) {
+      await PolylineService.launchExternalNavigation(
+        destLat: drop.latitude,
+        destLng: drop.longitude,
+        originLat: pickup.latitude,
+        originLng: pickup.longitude,
+      );
+    }
   }
 
   void _updateMarkers() {
@@ -217,7 +273,57 @@ class HomeController extends GetxController {
     await _checkActiveRide();
   }
 
+  Future<void> detectAndSetCurrentLocation() async {
+    try {
+      final LocationService locationService = LocationService();
+      final context = Get.context;
+      final position = await locationService.getCurrentLocation(context: context);
+
+      if (position != null) {
+        final latlng = LatLng(position.latitude, position.longitude);
+
+        // Clear all stale location data before updating
+        pickupPoint.value = latlng;
+        pickuplocation.value = latlng;
+        pickupAddress.value = '';
+        originController.text = '';
+
+        // Force-clear polyline cache so new pickup always re-fetches route
+        _polylineService.clearCache();
+        polylines.clear();
+        polylines.refresh();
+        _updateMarkers();
+
+        // Perform Google Geocoding API reverse lookup (fresh, no cache)
+        final address = await _polylineService.reverseGeocode(
+          position.latitude,
+          position.longitude,
+        );
+        if (address != null && address.isNotEmpty) {
+          pickupAddress.value = address;
+        } else {
+          await refreshAddressFor(latlng);
+        }
+        originController.text = pickupAddress.value;
+
+        // Force-refresh polyline with new pickup position
+        await updateRoutePolyline(forceRefresh: true);
+
+        if (_mapController != null) {
+          await _mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(target: latlng, zoom: 15),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('HomeController.detectAndSetCurrentLocation error: $e');
+    }
+  }
+
   Future<void> _loadHomePage() async {
+    await detectAndSetCurrentLocation();
     await Future.wait([getVehicleType(), refreshAddressFor(pickupPoint.value)]);
   }
 
@@ -255,7 +361,7 @@ class HomeController extends GetxController {
           'vehicle_type': booking.categoryName,
         };
         _redirectToRide(RouteNames.findingDriver, bookingArgs);
-      } else if (status == 'accepted' || status == 'started') {
+      } else if (status == 'accepted' || status == 'arrived' || status == 'started') {
         final bookingArgs = <String, dynamic>{
           'booking_no': booking.bookingNo,
           'booking_data': booking,

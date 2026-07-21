@@ -36,4 +36,8 @@ class AuthRepository {
       },
     );
   }
+
+  Future<dynamic> logout() async {
+    return await _client.post(ApiEndpoints.logout);
+  }
 }

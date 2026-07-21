@@ -24,10 +24,11 @@ class LocationSearchScreen extends GetView<HomeController> {
               dropLocation: controller.droplocation.value,
               onMapCreated: controller.onMapCreated,
               markers: controller.markers,
+              polylines: controller.polylines,
             ),
           ),
 
-          // 4. Top Search Area
+          // Top Route Selection Card
           Positioned(
             top: 0,
             left: 0,
@@ -59,10 +60,10 @@ class LocationSearchScreen extends GetView<HomeController> {
                     children: [
                       InkWell(
                         onTap: Get.back,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(16),
                         child: Container(
-                          width: 48,
-                          height: 18,
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
                             color: AppColors.inputFill,
                             borderRadius: BorderRadius.circular(16),
@@ -84,7 +85,8 @@ class LocationSearchScreen extends GetView<HomeController> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+
                   if (!hasValidPlacesKey)
                     Container(
                       width: double.infinity,
@@ -105,14 +107,39 @@ class LocationSearchScreen extends GetView<HomeController> {
                       ),
                     ),
 
-                  // Origin Input
+                  // Origin Input with GPS Button
                   GooglePlacesInput(
                     hintText: "Pickup Location",
                     controller: controller.originController,
                     prefixIcon: Icons.my_location_rounded,
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.gps_fixed),
-                      onPressed: () {},
+                      icon: const Icon(
+                        Icons.gps_fixed_rounded,
+                        color: AppColors.primaryDark,
+                      ),
+                      tooltip: 'Use current GPS location',
+                      onPressed: () async {
+                        Get.snackbar(
+                          'GPS Location',
+                          'Detecting current location...',
+                          backgroundColor: AppColors.surface,
+                          duration: const Duration(seconds: 2),
+                        );
+                        await controller.detectAndSetCurrentLocation();
+                        if (controller.pickupAddress.value.isNotEmpty) {
+                          Get.snackbar(
+                            'Pickup Address Set',
+                            controller.pickupAddress.value,
+                            backgroundColor: AppColors.surface,
+                            colorText: AppColors.textPrimary,
+                            icon: const Icon(
+                              Icons.check_circle_rounded,
+                              color: Colors.green,
+                            ),
+                            duration: const Duration(seconds: 3),
+                          );
+                        }
+                      },
                     ),
                     onPlaceSelected: (place) {
                       controller.setPickup(place);
@@ -120,23 +147,88 @@ class LocationSearchScreen extends GetView<HomeController> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Destination Input
-                  GooglePlacesInput(
-                    hintText: "Where to go?",
-                    controller: controller.destController,
-                    prefixIcon: Icons.location_on_rounded,
-                    onPlaceSelected: (place) {
-                      controller.setDrop(place);
-                    },
+                  // Destination Input + Disabled Plus Button for Multiple Stops
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GooglePlacesInput(
+                          hintText: "Where to go?",
+                          controller: controller.destController,
+                          prefixIcon: Icons.location_on_rounded,
+                          onPlaceSelected: (place) {
+                            controller.setDrop(place);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      InkWell(
+                        onTap: () {
+                          Get.snackbar(
+                            'Multiple Stops',
+                            'Multiple drop-off stops feature coming soon!',
+                            backgroundColor: AppColors.surface,
+                            colorText: AppColors.textPrimary,
+                            icon: const Icon(
+                              Icons.info_outline_rounded,
+                              color: AppColors.primaryDark,
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: AppColors.inputFill,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.borderSoft),
+                          ),
+                          child: const Icon(
+                            Icons.add_rounded,
+                            color: AppColors.textMuted,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
 
-          // 5. Confirm Button at bottom
+          // Floating External Navigation FAB (Save Google API Cost)
+          Obx(() {
+            if (controller.droplocation.value == null) {
+              return const SizedBox.shrink();
+            }
+
+            return Positioned(
+              bottom: 96,
+              right: 20,
+              child: FloatingActionButton.extended(
+                onPressed: controller.launchExternalNavigation,
+                backgroundColor: AppColors.surface,
+                elevation: 8,
+                icon: const Icon(
+                  Icons.navigation_rounded,
+                  color: AppColors.primaryDark,
+                ),
+                label: const Text(
+                  'Open Navigation',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            );
+          }),
+
+          // Confirm Button at bottom
           Positioned(
-            bottom: 32,
+            bottom: 24,
             left: 20,
             right: 20,
             child: ElevatedButton(
@@ -152,7 +244,7 @@ class LocationSearchScreen extends GetView<HomeController> {
               ),
               child: const Text(
                 'Confirm Destination',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
               ),
             ),
           ),

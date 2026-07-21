@@ -260,7 +260,10 @@ class SocketService extends GetxService with WidgetsBindingObserver {
 
     if (Get.isRegistered<HomeController>()) {
       final homeController = Get.find<HomeController>();
-      if (status == 'cancelled' || status == 'completed') {
+      if (status == 'cancelled' ||
+          status == 'completed' ||
+          status == 'no_driver_available' ||
+          status == 'expired') {
         homeController.activeRide.value = null;
       } else {
         homeController.activeRide.value = bookingData;
@@ -277,6 +280,12 @@ class SocketService extends GetxService with WidgetsBindingObserver {
       return;
     }
 
+    // Driver arrived at pickup — navigate to active ride if not already there
+    if (status == 'arrived' && Get.currentRoute != RouteNames.activeRide) {
+      Get.offAllNamed(RouteNames.activeRide, arguments: arguments);
+      return;
+    }
+
     if (status == 'started' && Get.currentRoute != RouteNames.activeRide) {
       Get.offAllNamed(RouteNames.activeRide, arguments: arguments);
       return;
@@ -285,6 +294,10 @@ class SocketService extends GetxService with WidgetsBindingObserver {
     if (status == 'completed' && Get.currentRoute != RouteNames.rideSummary) {
       Get.offAllNamed(RouteNames.rideSummary, arguments: arguments);
     }
+
+    // no_driver_available / expired — FindingDriverScreen listens for this
+    // via the booking_status event listener. No navigation needed here;
+    // the FindingDriverScreen handles it via socketService.on('booking_status').
   }
 
 }

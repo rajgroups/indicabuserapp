@@ -18,7 +18,6 @@ class HomeScreen extends GetView<HomeController> {
     final width = MediaQuery.of(context).size.width;
     final compact = width < 380;
     final vehicleHeight = compact ? 208.0 : 216.0;
-    final mapOffset = compact ? 390.0 : 330.0;
 
     return AppScreen(
       backgroundColor: AppColors.authBackground,
@@ -71,26 +70,29 @@ class HomeScreen extends GetView<HomeController> {
                     ),
                   );
                 }),
-                SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    children: [
-                      SizedBox(height: mapOffset),
-                      Container(
-                        width: double.infinity,
-                        decoration: const BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(32),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0x14000000),
-                              blurRadius: 28,
-                              offset: Offset(0, -6),
-                            ),
-                          ],
+                DraggableScrollableSheet(
+                  initialChildSize: compact ? 0.54 : 0.58,
+                  minChildSize: compact ? 0.40 : 0.45,
+                  maxChildSize: 0.92,
+                  builder: (context, scrollController) {
+                    return Container(
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(32),
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0x14000000),
+                            blurRadius: 28,
+                            offset: Offset(0, -6),
+                          ),
+                        ],
+                      ),
+                      child: SingleChildScrollView(
+                        controller: scrollController,
+                        physics: const BouncingScrollPhysics(),
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
                             compact ? 16 : 20,
@@ -154,23 +156,21 @@ class HomeScreen extends GetView<HomeController> {
                                   child: ListView.separated(
                                     scrollDirection: Axis.horizontal,
                                     physics: const BouncingScrollPhysics(),
+                                    itemCount: controller.vehicleTypes.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(width: 14),
                                     itemBuilder: (context, index) {
                                       final option =
                                           controller.vehicleTypes[index];
                                       final isSelected =
-                                          controller
-                                              .selectedVehicle
-                                              .value
-                                              ?.id ==
-                                          option.id;
+                                          controller.selectedVehicle.value?.id ==
+                                              option.id;
 
                                       return VehicleCard(
                                         option: option,
                                         isSelected: isSelected,
                                         onTap: () {
-                                          controller.toggleVehicleSelection(
-                                            option,
-                                          );
+                                          controller.toggleVehicleSelection(option);
                                           if (!isSelected) {
                                             _openVehicleSheet(context, option);
                                           }
@@ -185,9 +185,6 @@ class HomeScreen extends GetView<HomeController> {
                                         },
                                       );
                                     },
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(width: 14),
-                                    itemCount: controller.vehicleTypes.length,
                                   ),
                                 );
                               }),
@@ -272,30 +269,6 @@ class HomeScreen extends GetView<HomeController> {
                               const HomePromoBanner(),
                               const SizedBox(height: 28),
                               const HomeSectionTitle(
-                                title: 'Booking Details',
-                                subtitle:
-                                    'Helpful information before you confirm',
-                              ),
-                              const SizedBox(height: 14),
-                              const HomeBookingInfoCard(
-                                icon: Icons.schedule_rounded,
-                                title: 'Ride Availability',
-                                value: 'Fast pickup in 3-5 mins',
-                              ),
-                              const SizedBox(height: 12),
-                              const HomeBookingInfoCard(
-                                icon: Icons.payments_rounded,
-                                title: 'Payment Mode',
-                                value: 'Cash, UPI and wallet supported',
-                              ),
-                              const SizedBox(height: 12),
-                              const HomeBookingInfoCard(
-                                icon: Icons.shield_rounded,
-                                title: 'Safety',
-                                value: 'Verified drivers and live tracking',
-                              ),
-                              const SizedBox(height: 28),
-                              const HomeSectionTitle(
                                 title: 'Saved Places',
                                 subtitle:
                                     'Quickly book your most common routes',
@@ -326,17 +299,14 @@ class HomeScreen extends GetView<HomeController> {
                                   'Airport selected',
                                 ),
                               ),
-                              const SizedBox(height: 22),
+                              const SizedBox(height: 28),
                               SizedBox(
                                 width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _showBookingSnack(
-                                    context,
-                                    'Continue to booking',
-                                  ),
-                                  icon: const Icon(Icons.arrow_forward_rounded),
-                                  label: const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 4),
+                                child: ElevatedButton(
+                                  onPressed: () =>
+                                      Get.toNamed(RouteNames.locationSearch),
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 2),
                                     child: Text(
                                       'Continue Booking',
                                       style: TextStyle(
@@ -362,8 +332,8 @@ class HomeScreen extends GetView<HomeController> {
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
                 const Positioned(
                   top: 0,

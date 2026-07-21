@@ -37,6 +37,7 @@ class HomeMapArea extends GetView<HomeController> {
                 dropLocation: controller.droplocation.value,
                 onMapCreated: controller.onMapCreated,
                 markers: controller.markers,
+                polylines: controller.polylines,
                 zoom: 2,
               ),
             ),
@@ -110,7 +111,9 @@ class HomeMapArea extends GetView<HomeController> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            controller.dropAddress.value,
+                            controller.dropAddress.value.isNotEmpty
+                                ? controller.dropAddress.value
+                                : 'Tap search bar to select destination',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -122,6 +125,42 @@ class HomeMapArea extends GetView<HomeController> {
                         ],
                       ),
                     ),
+                    if (controller.droplocation.value != null) ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: controller.launchExternalNavigation,
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.navigation_rounded,
+                                size: 16,
+                                color: AppColors.textPrimary,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Maps',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -239,46 +278,51 @@ class HomeTopBar extends GetView<HomeController> {
           const SizedBox(width: 14),
           Expanded(
             child: Obx(
-              () => Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: width < 380 ? 14 : 18,
-                  vertical: width < 380 ? 14 : 16,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x16000000),
-                      blurRadius: 20,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                     'Current Location',
-                      style: TextStyle(
-                        fontSize: width < 380 ? 12 : 13,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
+              () => InkWell(
+                onTap: () => Get.toNamed(RouteNames.locationSearch),
+                borderRadius: BorderRadius.circular(22),
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: width < 380 ? 14 : 18,
+                    vertical: width < 380 ? 14 : 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x16000000),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      
-                      controller.pickupAddress.value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: width < 380 ? 14 : 16,
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pickup Location',
+                        style: TextStyle(
+                          fontSize: width < 380 ? 12 : 13,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        controller.pickupAddress.value.isNotEmpty
+                            ? controller.pickupAddress.value
+                            : 'Select Pickup Location',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: width < 380 ? 14 : 16,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

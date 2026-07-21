@@ -306,22 +306,48 @@ class SubCategoryCard extends StatelessWidget {
                     ),
                   InkWell(
                     onTap: onTap,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                        horizontal: 16,
+                        vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        color: accentColor,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Text(
-                        'Select',
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.w700,
+                        gradient: LinearGradient(
+                          colors: [
+                            accentColor,
+                            Color.lerp(accentColor, Colors.black, 0.2)!,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accentColor.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.bolt_rounded,
+                            size: 16,
+                            color: AppColors.white,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Book Now',
+                            style: TextStyle(
+                              color: AppColors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

@@ -8,14 +8,13 @@ class VehicleCard extends StatelessWidget {
     required this.option,
     required this.isSelected,
     required this.onTap,
-    this.onMapTap, // 2. Add to constructor
-    
+    this.onMapTap,
   });
 
   final VehicleOption option;
   final bool isSelected;
   final VoidCallback onTap;
-   final VoidCallback? onMapTap; // 1. Add this variable
+  final VoidCallback? onMapTap;
 
   @override
   Widget build(BuildContext context) {
@@ -83,11 +82,11 @@ class VehicleCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          isSelected ? 'Selected' : 'Available',
+                          isSelected ? 'Book Now' : 'Available',
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 10,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                             color: isSelected
                                 ? AppColors.white
                                 : option.accentColor,
