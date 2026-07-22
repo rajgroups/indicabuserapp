@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,13 +58,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     _driverAnimator = DriverMarkerAnimator(vsync: this);
     _driverAnimator.onUpdate = _onDriverAnimationTick;
 
-    // Seed the initial driver position from the booking data if available
-    final driverLat = double.tryParse(_bookingData?.driverLatitude ?? '');
-    final driverLng = double.tryParse(_bookingData?.driverLongitude ?? '');
-    if (driverLat != null && driverLng != null) {
-      _driverPosition = LatLng(driverLat, driverLng);
-      _driverAnimator.animateTo(_driverPosition!);
-    }
+    // Seed the initial driver position from the booking data or pickup location
+    _seedDriverPosition();
 
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -118,15 +114,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       );
       final bookingData = response.data;
       if (bookingData != null && mounted) {
-        final driverLat = double.tryParse(bookingData.driverLatitude ?? '');
-        final driverLng = double.tryParse(bookingData.driverLongitude ?? '');
-        if (driverLat != null && driverLng != null) {
-          final newPos = LatLng(driverLat, driverLng);
-          _driverPosition = newPos;
-          _driverAnimator.animateTo(newPos);
-        }
-
         setState(() => _bookingData = bookingData);
+        _seedDriverPosition();
         _buildMarkersAndPolyline();
       }
     } catch (e) {
@@ -149,21 +138,100 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   // Socket Event Handlers
   // ---------------------------------------------------------------------------
 
+  void _seedDriverPosition() {
+    final pLat = double.tryParse(_bookingData?.pickupLatitude ?? '');
+    final pLng = double.tryParse(_bookingData?.pickupLongitude ?? '');
+    final pickupPos = (pLat != null && pLng != null && pLat != 0 && pLng != 0)
+        ? LatLng(pLat, pLng)
+        : null;
+
+    final dLat = double.tryParse(_bookingData?.driverLatitude ?? '');
+    final dLng = double.tryParse(_bookingData?.driverLongitude ?? '');
+
+    if (dLat != null && dLng != null && dLat != 0 && dLng != 0) {
+      final candPos = LatLng(dLat, dLng);
+      // Ignore stale seeded location (e.g. Vijayawada) if > 50km from pickup
+      if (pickupPos == null || _distanceBetween(candPos, pickupPos) < 50000) {
+        _driverPosition = candPos;
+        _driverAnimator.animateTo(_driverPosition!);
+        return;
+      }
+    }
+
+    if (pickupPos != null) {
+      _driverPosition = pickupPos;
+      _driverAnimator.animateTo(_driverPosition!);
+    }
+  }
+
+  double _distanceBetween(LatLng a, LatLng b) {
+    const double earthRadius = 6371000;
+    final dLat = (b.latitude - a.latitude) * math.pi / 180;
+    final dLng = (b.longitude - a.longitude) * math.pi / 180;
+    final sinDLat = math.sin(dLat / 2);
+    final sinDLng = math.sin(dLng / 2);
+    final h = sinDLat * sinDLat +
+        math.cos(a.latitude * math.pi / 180) *
+            math.cos(b.latitude * math.pi / 180) *
+            sinDLng *
+            sinDLng;
+    return earthRadius * 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
+  }
+
   void _onDriverLocationUpdate(dynamic data) {
     if (data is! Map<String, dynamic> || !mounted) return;
 
-    final bookingNo = data['booking_no']?.toString();
-    if (bookingNo != widget.bookingNo) return;
+    final incomingNo = data['booking_no']?.toString();
+    final activeNo = widget.bookingNo ?? _bookingData?.bookingNo;
+    if (incomingNo != null &&
+        incomingNo.isNotEmpty &&
+        activeNo != null &&
+        activeNo.isNotEmpty &&
+        incomingNo != activeNo) {
+      return;
+    }
 
     final lat = double.tryParse(data['latitude']?.toString() ?? '');
     final lng = double.tryParse(data['longitude']?.toString() ?? '');
-    if (lat == null || lng == null) return;
+    if (lat == null || lng == null || (lat == 0 && lng == 0)) return;
 
     final newPos = LatLng(lat, lng);
     final bearing = double.tryParse(data['bearing']?.toString() ?? '');
 
     _driverPosition = newPos;
     _driverAnimator.animateTo(newPos, bearing: bearing);
+    _updateDriverToPickupRouteIfNeeded(newPos);
+  }
+
+  Future<void> _updateDriverToPickupRouteIfNeeded(LatLng newPos) async {
+    final status = _bookingData?.status?.trim().toLowerCase() ?? '';
+    if (status == 'accepted' || status == 'arrived') {
+      final pLat = double.tryParse(_bookingData?.pickupLatitude ?? '');
+      final pLng = double.tryParse(_bookingData?.pickupLongitude ?? '');
+      if (pLat != null && pLng != null && pLat != 0 && pLng != 0) {
+        final pickupPos = LatLng(pLat, pLng);
+        final directionsResult = await _polylineService.fetchRoute(
+          newPos,
+          pickupPos,
+          forceRefresh: true,
+        );
+        if (directionsResult.points.isNotEmpty && mounted) {
+          _polylines.clear();
+          _polylines.add(
+            Polyline(
+              polylineId: const PolylineId('route'),
+              points: directionsResult.points,
+              color: AppColors.primary,
+              width: 5,
+            ),
+          );
+          setState(() {
+            _etaDistance = directionsResult.distanceText;
+            _etaDuration = directionsResult.durationText;
+          });
+        }
+      }
+    }
   }
 
   void _onBookingStatusUpdate(dynamic data) {
@@ -173,14 +241,19 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     if (booking is! Map<String, dynamic>) return;
 
     final bookingNo = booking['booking_no']?.toString();
-    if (bookingNo != widget.bookingNo) return;
+    if (bookingNo != widget.bookingNo && bookingNo != _bookingData?.bookingNo) return;
 
     final newBooking = BookingDataModel.fromJson(booking);
     final newStatus = newBooking.status?.trim().toLowerCase();
 
     setState(() => _bookingData = newBooking);
 
-    // Handle arrived status — show bottom sheet
+    // If OTP is missing, fetch full details with OTP included
+    if (newBooking.startOtp == null || newBooking.startOtp!.trim().isEmpty) {
+      _fetchBookingDetails(silent: true);
+    }
+
+    // Handle arrived status — show bottom sheet with OTP
     if (newStatus == 'arrived' && !_arrivedSheetShown) {
       _arrivedSheetShown = true;
       _showDriverArrivedSheet();
@@ -407,6 +480,11 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   // ---------------------------------------------------------------------------
 
   void _showDriverArrivedSheet() {
+    // Ensure we attempt to load OTP if missing
+    if (_bookingData?.startOtp == null || _bookingData!.startOtp!.trim().isEmpty) {
+      _fetchBookingDetails(silent: true);
+    }
+
     // Haptic feedback
     HapticFeedback.heavyImpact();
     // System notification sound
@@ -417,6 +495,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       isDismissible: false,
       backgroundColor: Colors.transparent,
       builder: (context) {
+        final otpStr = _bookingData?.startOtp?.trim();
         return Container(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
           decoration: const BoxDecoration(
@@ -456,6 +535,42 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                   fontSize: 14,
                   color: AppColors.textSecondary,
                   height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Prominent Ride OTP Card inside Driver Arrived sheet
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Share this OTP with your driver',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      otpStr != null && otpStr.isNotEmpty
+                          ? otpStr.split('').join('  ')
+                          : 'Waiting for OTP...',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 4,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),
@@ -595,6 +710,25 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     };
   }
 
+  LatLng _getInitialCameraTarget() {
+    if (_driverPosition != null &&
+        _driverPosition!.latitude != 0 &&
+        _driverPosition!.longitude != 0) {
+      return _driverPosition!;
+    }
+    final pLat = double.tryParse(_bookingData?.pickupLatitude ?? '');
+    final pLng = double.tryParse(_bookingData?.pickupLongitude ?? '');
+    if (pLat != null && pLng != null && pLat != 0 && pLng != 0) {
+      return LatLng(pLat, pLng);
+    }
+    final dLat = double.tryParse(_bookingData?.dropLatitude ?? '');
+    final dLng = double.tryParse(_bookingData?.dropLongitude ?? '');
+    if (dLat != null && dLng != null && dLat != 0 && dLng != 0) {
+      return LatLng(dLat, dLng);
+    }
+    return const LatLng(12.9756, 77.6050);
+  }
+
   // ---------------------------------------------------------------------------
   // Build
   // ---------------------------------------------------------------------------
@@ -614,11 +748,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
           // -- Google Map --
           GoogleMap(
             initialCameraPosition: CameraPosition(
-              target: LatLng(
-                double.tryParse(_bookingData?.pickupLatitude ?? '0') ?? 20.5937,
-                double.tryParse(_bookingData?.pickupLongitude ?? '0') ??
-                    78.9629,
-              ),
+              target: _getInitialCameraTarget(),
               zoom: 14,
             ),
             onMapCreated: (GoogleMapController controller) {

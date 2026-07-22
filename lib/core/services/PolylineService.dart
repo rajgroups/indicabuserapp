@@ -194,9 +194,9 @@ class PolylineService {
 
   /// Reverse geocode LatLng coordinates into a human-readable street address using Google Geocoding API.
   Future<String?> reverseGeocode(double lat, double lng) async {
-    final key = AppEnv.googleMapsApiKey.isNotEmpty
+    final key = AppEnv.hasGoogleMapsApiKey
         ? AppEnv.googleMapsApiKey
-        : AppEnv.googlePlacesApiKey;
+        : (AppEnv.hasGooglePlacesApiKey ? AppEnv.googlePlacesApiKey : '');
     if (key.isEmpty) return null;
 
     try {

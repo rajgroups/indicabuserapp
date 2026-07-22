@@ -83,10 +83,19 @@ class _TrackRideScreenState extends State<TrackRideScreen> {
         children: [
           GoogleMap(
             initialCameraPosition: CameraPosition(
-              target: LatLng(
-                double.tryParse(widget.bookingData?.pickupLatitude ?? '0') ?? 20.5937,
-                double.tryParse(widget.bookingData?.pickupLongitude ?? '0') ?? 78.9629,
-              ),
+              target: () {
+                final pLat = double.tryParse(widget.bookingData?.pickupLatitude ?? '');
+                final pLng = double.tryParse(widget.bookingData?.pickupLongitude ?? '');
+                if (pLat != null && pLng != null && pLat != 0 && pLng != 0) {
+                  return LatLng(pLat, pLng);
+                }
+                final dLat = double.tryParse(widget.bookingData?.dropLatitude ?? '');
+                final dLng = double.tryParse(widget.bookingData?.dropLongitude ?? '');
+                if (dLat != null && dLng != null && dLat != 0 && dLng != 0) {
+                  return LatLng(dLat, dLng);
+                }
+                return const LatLng(12.9756, 77.6050);
+              }(),
               zoom: 14,
             ),
             onMapCreated: (controller) {

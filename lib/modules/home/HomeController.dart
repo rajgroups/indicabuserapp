@@ -43,7 +43,7 @@ class HomeController extends GetxController {
   final RxList<VehicleOption> vehicleTypes = <VehicleOption>[].obs;
   final Rxn<VehicleOption> selectedVehicle = Rxn<VehicleOption>();
   final Rx<LatLng> pickupPoint = defaultPickup.obs;
-  final RxString currentAddress = 'MG Road, Bengaluru'.obs;
+  final RxString currentAddress = ''.obs;
 
   // Lat and Lng details
   Rxn<LatLng> pickuplocation = Rxn<LatLng>();
@@ -299,10 +299,20 @@ class HomeController extends GetxController {
           position.latitude,
           position.longitude,
         );
-        if (address != null && address.isNotEmpty) {
+        if (address != null && address.trim().isNotEmpty) {
           pickupAddress.value = address;
+          currentAddress.value = address;
         } else {
           await refreshAddressFor(latlng);
+          if (pickupAddress.value.isEmpty) {
+            final dynamicFallback =
+                currentAddress.value.isNotEmpty &&
+                        !currentAddress.value.startsWith('Enable GOOGLE_')
+                    ? currentAddress.value
+                    : 'Location (${latlng.latitude.toStringAsFixed(4)}, ${latlng.longitude.toStringAsFixed(4)})';
+            pickupAddress.value = dynamicFallback;
+            currentAddress.value = dynamicFallback;
+          }
         }
         originController.text = pickupAddress.value;
 
@@ -429,6 +439,8 @@ class HomeController extends GetxController {
 
       if (formattedAddress != null && formattedAddress.trim().isNotEmpty) {
         currentAddress.value = formattedAddress;
+        pickupAddress.value = formattedAddress;
+        originController.text = formattedAddress;
         debugPrint('Reverse geocoded address: $formattedAddress');
       }
     } catch (error) {
