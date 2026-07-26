@@ -8,13 +8,17 @@ class VehicleDetailsSheet extends StatelessWidget {
     required this.option,
     required this.scrollController,
     required this.onSelect,
-    this.onMapTap, // 2. Add to constructor
+    this.onMapTap,
+    this.hasDropLocation = false,
+    this.distanceKm = 0.0,
   });
 
   final VehicleOption option;
   final ScrollController scrollController;
   final ValueChanged<VehicleSubCategory> onSelect;
-  final Function(VehicleSubCategory)? onMapTap; // 1. Add this variable
+  final Function(VehicleSubCategory)? onMapTap;
+  final bool hasDropLocation;
+  final double distanceKm;
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +82,8 @@ class VehicleDetailsSheet extends StatelessWidget {
                             accentColor: option.accentColor,
                             subCategory: subCategory,
                             icon: option.icon,
+                            hasDropLocation: hasDropLocation,
+                            distanceKm: distanceKm,
                             onTap: () => onSelect(subCategory),
                             onMapTap: onMapTap != null
                                 ? () => onMapTap!(subCategory)
@@ -170,6 +176,8 @@ class SubCategoryCard extends StatelessWidget {
     required this.accentColor,
     required this.onTap,
     this.onMapTap,
+    this.hasDropLocation = false,
+    this.distanceKm = 0.0,
   });
 
   final VehicleSubCategory subCategory;
@@ -177,10 +185,20 @@ class SubCategoryCard extends StatelessWidget {
   final Color accentColor;
   final VoidCallback onTap;
   final VoidCallback? onMapTap;
+  final bool hasDropLocation;
+  final double distanceKm;
 
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.of(context).size.width < 380;
+    final highlightedFare = subCategory.getHighlightFare(
+      hasDropLocation: hasDropLocation,
+      distanceKm: distanceKm,
+    );
+    final fareBasis = subCategory.getFareBasisText(
+      hasDropLocation: hasDropLocation,
+      distanceKm: distanceKm,
+    );
 
     return Material(
       color: const Color(0xFFFCFCFD),
@@ -227,6 +245,15 @@ class SubCategoryCard extends StatelessWidget {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          fareBasis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: accentColor.withValues(alpha: 0.85),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -234,15 +261,51 @@ class SubCategoryCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        subCategory.price,
-                        style: TextStyle(
-                          fontSize: compact ? 14 : 15,
-                          fontWeight: FontWeight.w800,
-                          color: accentColor,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              accentColor.withValues(alpha: 0.18),
+                              accentColor.withValues(alpha: 0.08),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: accentColor.withValues(alpha: 0.35),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              highlightedFare,
+                              style: TextStyle(
+                                fontSize: compact ? 15 : 18,
+                                fontWeight: FontWeight.w900,
+                                color: accentColor,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              hasDropLocation ? 'Est. Total' : 'Base Rate',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: accentColor.withValues(alpha: 0.9),
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
                         subCategory.eta,
                         style: const TextStyle(

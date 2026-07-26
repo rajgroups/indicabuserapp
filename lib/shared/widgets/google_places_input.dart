@@ -159,7 +159,7 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
         'https://maps.googleapis.com/maps/api/place/details/json',
         queryParameters: <String, dynamic>{
           'place_id': suggestion.placeId,
-          'fields': 'formatted_address,geometry',
+          'fields': 'name,formatted_address,geometry,address_components,vicinity,types',
           'key': AppEnv.googlePlacesApiKey,
         },
       );
@@ -185,17 +185,30 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
       final Map<String, dynamic> location = Map<String, dynamic>.from(
         geometry['location'] as Map? ?? <String, dynamic>{},
       );
+      final List<String> placeTypes = (result['types'] as List<dynamic>? ?? <dynamic>[])
+          .map((dynamic type) => type.toString())
+          .toList();
 
       final place = PlaceSelection(
-        description:
+        placeId: suggestion.placeId,
+        name: (result['name'] as String?) ?? suggestion.description,
+        description: suggestion.description,
+        formattedAddress:
             (result['formatted_address'] as String?) ?? suggestion.description,
+        vicinity: result['vicinity'] as String?,
         lat: '${location['lat'] ?? ''}',
         lng: '${location['lng'] ?? ''}',
+        types: placeTypes,
       );
 
       if (!mounted) {
         return;
       }
+
+      widget.controller.text = place.formattedAddress;
+      widget.controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: widget.controller.text.length),
+      );
 
       setState(() {
         _isLoading = false;
@@ -344,14 +357,24 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
 }
 
 class PlaceSelection {
+  final String placeId;
+  final String name;
   final String description;
+  final String formattedAddress;
+  final String? vicinity;
   final String lat;
   final String lng;
+  final List<String> types;
 
   const PlaceSelection({
+    required this.placeId,
+    required this.name,
     required this.description,
+    required this.formattedAddress,
+    this.vicinity,
     required this.lat,
     required this.lng,
+    this.types = const <String>[],
   });
 }
 

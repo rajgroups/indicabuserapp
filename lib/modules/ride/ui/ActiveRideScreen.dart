@@ -1293,7 +1293,11 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                           // -- SOS --
                           InkWell(
                             onTap: () =>
-                                Get.to(() => const SosScreen()),
+                                Get.to(() => SosScreen(
+                                      bookingNo: widget.bookingNo ??
+                                          _bookingData?.bookingNo ??
+                                          '',
+                                    )),
                             borderRadius: BorderRadius.circular(18),
                             child: Container(
                               padding: const EdgeInsets.all(16),

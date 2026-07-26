@@ -1,5 +1,6 @@
 // import 'dart:nativewrappers/_internal/vm/lib/ffi_native_type_patch.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -48,10 +49,14 @@ class HomeController extends GetxController {
   // Lat and Lng details
   Rxn<LatLng> pickuplocation = Rxn<LatLng>();
   Rxn<LatLng> droplocation = Rxn<LatLng>();
+  RxString pickupCoordinates = ''.obs;
+  RxString dropCoordinates = ''.obs;
 
   // address Details
   RxString pickupAddress = ''.obs;
   RxString dropAddress = ''.obs;
+  RxString pickupPlaceName = ''.obs;
+  RxString dropPlaceName = ''.obs;
 
   RxSet<Marker> markers = <Marker>{}.obs;
   RxSet<Polyline> polylines = <Polyline>{}.obs;
@@ -111,22 +116,32 @@ class HomeController extends GetxController {
 
     pickupPoint.value = latlng;
     pickuplocation.value = latlng;
-    pickupAddress.value = place.description ?? '';
+    pickupPlaceName.value = place.name;
+    pickupAddress.value = place.formattedAddress.isNotEmpty
+        ? place.formattedAddress
+        : place.description;
+    pickupCoordinates.value = _formatCoordinates(latlng);
     originController.text = pickupAddress.value;
     _updateMarkers();
     await updateRoutePolyline();
     await _focusMapOnSelectedLocations();
+    await getVehicleType();
   }
 
   Future<void> setDrop(dynamic place) async {
     final latlng = LatLng(double.parse(place.lat), double.parse(place.lng));
 
     droplocation.value = latlng;
-    dropAddress.value = place.description ?? '';
+    dropPlaceName.value = place.name;
+    dropAddress.value = place.formattedAddress.isNotEmpty
+        ? place.formattedAddress
+        : place.description;
+    dropCoordinates.value = _formatCoordinates(latlng);
     destController.text = dropAddress.value;
     _updateMarkers();
     await updateRoutePolyline();
     await _focusMapOnSelectedLocations();
+    await getVehicleType();
   }
 
   Future<void> updateRoutePolyline({bool forceRefresh = false}) async {
@@ -285,7 +300,9 @@ class HomeController extends GetxController {
         // Clear all stale location data before updating
         pickupPoint.value = latlng;
         pickuplocation.value = latlng;
+        pickupPlaceName.value = '';
         pickupAddress.value = '';
+        pickupCoordinates.value = _formatCoordinates(latlng);
         originController.text = '';
 
         // Force-clear polyline cache so new pickup always re-fetches route
@@ -314,6 +331,7 @@ class HomeController extends GetxController {
             currentAddress.value = dynamicFallback;
           }
         }
+        pickupCoordinates.value = _formatCoordinates(latlng);
         originController.text = pickupAddress.value;
 
         // Force-refresh polyline with new pickup position
@@ -438,8 +456,10 @@ class HomeController extends GetxController {
           : null;
 
       if (formattedAddress != null && formattedAddress.trim().isNotEmpty) {
+        pickupPlaceName.value = '';
         currentAddress.value = formattedAddress;
         pickupAddress.value = formattedAddress;
+        pickupCoordinates.value = _formatCoordinates(point);
         originController.text = formattedAddress;
         debugPrint('Reverse geocoded address: $formattedAddress');
       }
@@ -450,17 +470,62 @@ class HomeController extends GetxController {
     }
   }
 
+  String _formatCoordinates(LatLng point) {
+    return 'Lat: ${point.latitude.toStringAsFixed(6)}, Lng: ${point.longitude.toStringAsFixed(6)}';
+  }
+
+  double calculateDistanceKm() {
+    final pickup = pickuplocation.value ?? pickupPoint.value;
+    final drop = droplocation.value;
+
+    if (drop == null) {
+      return 0.0;
+    }
+
+    const earthRadiusKm = 6371.0;
+    final dLat = (drop.latitude - pickup.latitude) * 3.1415926535897932 / 180.0;
+    final dLng = (drop.longitude - pickup.longitude) * 3.1415926535897932 / 180.0;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(pickup.latitude * 3.1415926535897932 / 180.0) *
+            math.cos(drop.latitude * 3.1415926535897932 / 180.0) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
   Future<void> getVehicleType() async {
     try {
       isLoading.value = true;
+
+      final pickup = pickuplocation.value ?? pickupPoint.value;
+      final drop = droplocation.value;
+      final distanceKm = calculateDistanceKm();
 
       final response = await _vehicleService.getAllvehicleCategory(
         page: page,
         limit: limit,
         search: search,
+        pickupLat: pickup.latitude,
+        pickupLng: pickup.longitude,
+        dropLat: drop?.latitude,
+        dropLng: drop?.longitude,
+        distanceKm: distanceKm > 0 ? distanceKm : null,
       );
 
-      vehicleTypes.value = response.data.map(_mapVehicleType).toList();
+      final mapped = response.data
+          .map((v) => _mapVehicleType(v, distanceKm: distanceKm))
+          .toList();
+
+      vehicleTypes.value = mapped;
+
+      if (selectedVehicle.value != null) {
+        final currentId = selectedVehicle.value!.id;
+        final updatedSelected = mapped.firstWhereOrNull((v) => v.id == currentId);
+        if (updatedSelected != null) {
+          selectedVehicle.value = updatedSelected;
+        }
+      }
     } catch (error) {
       debugPrint('HomeController.getVehicleType error: $error');
     } finally {
@@ -472,13 +537,24 @@ class HomeController extends GetxController {
     page++;
 
     try {
+      final pickup = pickuplocation.value ?? pickupPoint.value;
+      final drop = droplocation.value;
+      final distanceKm = calculateDistanceKm();
+
       final response = await _vehicleService.getAllvehicleCategory(
         page: page,
         limit: limit,
         search: search,
+        pickupLat: pickup.latitude,
+        pickupLng: pickup.longitude,
+        dropLat: drop?.latitude,
+        dropLng: drop?.longitude,
+        distanceKm: distanceKm > 0 ? distanceKm : null,
       );
 
-      vehicleTypes.addAll(response.data.map(_mapVehicleType));
+      vehicleTypes.addAll(
+        response.data.map((v) => _mapVehicleType(v, distanceKm: distanceKm)),
+      );
     } catch (error) {
       debugPrint('HomeController.loadMore error: $error');
     }
@@ -497,9 +573,13 @@ class HomeController extends GetxController {
     }
 
     selectedVehicle.value = vehicle;
+    unawaited(getVehicleType());
   }
 
-  VehicleOption _mapVehicleType(ApiVehicleType vehicle) {
+  VehicleOption _mapVehicleType(
+    ApiVehicleType vehicle, {
+    double distanceKm = 0.0,
+  }) {
     final fallbackStyle = _fallbackStyleFor(vehicle);
 
     return VehicleOption(
@@ -524,6 +604,7 @@ class HomeController extends GetxController {
               description: subCategory.description,
               eta: subCategory.eta,
               seats: subCategory.seats,
+              estimatedFare: subCategory.estimatedFare ?? subCategory.price,
             ),
           )
           .toList(),

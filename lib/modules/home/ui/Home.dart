@@ -374,9 +374,14 @@ class HomeScreen extends GetView<HomeController> {
           maxChildSize: 0.9, // Can expand up to 0.9
           expand: false, // Often helpful in BottomSheets
           builder: (context, scrollController) {
+            final hasDrop = controller.droplocation.value != null;
+            final distKm = controller.calculateDistanceKm();
+
             return VehicleDetailsSheet(
               option: option,
               scrollController: scrollController,
+              hasDropLocation: hasDrop,
+              distanceKm: distKm,
               onSelect: (subCategory) {
                 Navigator.of(context).pop();
                 WidgetsBinding.instance.addPostFrameCallback((_) {

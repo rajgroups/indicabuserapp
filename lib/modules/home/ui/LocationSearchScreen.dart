@@ -192,6 +192,55 @@ class LocationSearchScreen extends GetView<HomeController> {
                       ),
                     ],
                   ),
+                  Obx(() {
+                    final hasPickup =
+                        controller.pickupAddress.value.isNotEmpty ||
+                        controller.pickupCoordinates.value.isNotEmpty;
+                    final hasDrop =
+                        controller.dropAddress.value.isNotEmpty ||
+                        controller.dropCoordinates.value.isNotEmpty;
+
+                    if (!hasPickup && !hasDrop) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 14),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.inputFill,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.borderSoft),
+                      ),
+                      child: Column(
+                        children: [
+                          if (hasPickup)
+                            _LocationSummaryTile(
+                              icon: Icons.my_location_rounded,
+                              label: 'Pickup selected',
+                              title: controller.pickupPlaceName.value.isNotEmpty
+                                  ? controller.pickupPlaceName.value
+                                  : controller.pickupAddress.value,
+                              subtitle: controller.pickupAddress.value,
+                              coordinates: controller.pickupCoordinates.value,
+                            ),
+                          if (hasPickup && hasDrop)
+                            const SizedBox(height: 12),
+                          if (hasDrop)
+                            _LocationSummaryTile(
+                              icon: Icons.location_on_rounded,
+                              label: 'Drop selected',
+                              title: controller.dropPlaceName.value.isNotEmpty
+                                  ? controller.dropPlaceName.value
+                                  : controller.dropAddress.value,
+                              subtitle: controller.dropAddress.value,
+                              coordinates: controller.dropCoordinates.value,
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -250,6 +299,93 @@ class LocationSearchScreen extends GetView<HomeController> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LocationSummaryTile extends StatelessWidget {
+  const _LocationSummaryTile({
+    required this.icon,
+    required this.label,
+    required this.title,
+    required this.subtitle,
+    required this.coordinates,
+  });
+
+  final IconData icon;
+  final String label;
+  final String title;
+  final String subtitle;
+  final String coordinates;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: AppColors.primaryDark, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (subtitle.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+              if (coordinates.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  coordinates,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

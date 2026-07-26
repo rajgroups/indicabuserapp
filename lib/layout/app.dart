@@ -9,6 +9,8 @@ import '../core/routes/routes.dart';
 import '../core/routes/names.dart';
 import '../core/services/SecureStorageService.dart';
 import '../core/services/StorageService.dart';
+import '../core/repository/AppUpdateRepository.dart';
+import '../shared/widgets/app_update_dialog.dart';
 import '../core/theme/theme.dart';
 
 class IndicabApp extends StatelessWidget {
@@ -50,6 +52,31 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _resolveInitialScreen() async {
+    // 1. Check for app updates initially on app launch
+    try {
+      final updateRepo = AppUpdateRepository(_client);
+      final updateInfo = await updateRepo.checkUpdate(appVersion: '1.0.0');
+
+      if (updateInfo.updateAvailable && mounted) {
+        await AppUpdateDialog.show(
+          context: context,
+          updateModel: updateInfo,
+          onDismiss: _proceedToScreen,
+        );
+        // If force update is required, dialog remains open & blocks app navigation
+        if (updateInfo.forceUpdate) {
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('App update check failed or offline: $e');
+    }
+
+    if (!mounted) return;
+    await _proceedToScreen();
+  }
+
+  Future<void> _proceedToScreen() async {
     final token = await _readStoredToken();
 
     if (!mounted) {
