@@ -122,19 +122,6 @@ class HomeMapArea extends GetView<HomeController> {
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          if (controller.dropCoordinates.value.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              controller.dropCoordinates.value,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -334,19 +321,6 @@ class HomeTopBar extends GetView<HomeController> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      if (controller.pickupCoordinates.value.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          controller.pickupCoordinates.value,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),

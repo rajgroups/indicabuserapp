@@ -130,8 +130,8 @@ class AuthController extends GetxController {
 
   @override
   void onClose() {
-    mobileController.dispose();
-    otpController.dispose();
+    mobileController.clear();
+    otpController.clear();
     super.onClose();
   }
 }

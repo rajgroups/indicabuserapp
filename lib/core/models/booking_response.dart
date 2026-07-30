@@ -93,8 +93,8 @@ class BookingDataModel {
       vehicleId: json['vehicle_id'] as int?,
       vehicleCategoryId: json['vehicle_category_id'] as int?,
       scheduledAt: json['scheduled_at']?.toString(),
-      pickupAddress: json['pickup_address']?.toString(),
-      dropAddress: json['drop_address']?.toString(),
+      pickupAddress: _sanitizeAddress(json['pickup_address']?.toString()),
+      dropAddress: _sanitizeAddress(json['drop_address']?.toString()),
       startOtp: json['start_otp']?.toString(),
       endOtp: json['end_otp']?.toString(),
       estimatedAmount: json['estimated_amount'] != null
@@ -142,6 +142,17 @@ class BookingDataModel {
       }
     }
     return null;
+  }
+
+  static String? _sanitizeAddress(String? address) {
+    if (address == null || address.trim().isEmpty) {
+      return null;
+    }
+    final trimmed = address.trim();
+    if (trimmed.startsWith('Location (') || trimmed.startsWith('Enable GOOGLE_')) {
+      return 'Pickup Location';
+    }
+    return trimmed;
   }
 
   static String? _joinParts(List<String?> parts) {

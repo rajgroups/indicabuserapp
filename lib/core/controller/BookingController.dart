@@ -235,7 +235,7 @@ class BookingController extends GetxController {
     final dropLocation = _homeController.droplocation.value;
 
     final locations = <BookingLocationRequest>[];
-    final String pickupAddr =
+    String pickupAddr =
         _homeController.pickupAddress.value.trim().isNotEmpty
         ? _homeController.pickupAddress.value
         : (_homeController.currentAddress.value.trim().isNotEmpty &&
@@ -243,7 +243,11 @@ class BookingController extends GetxController {
                     'Enable GOOGLE_',
                   )
               ? _homeController.currentAddress.value
-              : 'Location (${pickupLocation.latitude.toStringAsFixed(4)}, ${pickupLocation.longitude.toStringAsFixed(4)})');
+              : 'Current Location');
+
+    if (pickupAddr.startsWith('Location (') || pickupAddr.startsWith('Enable GOOGLE_')) {
+      pickupAddr = 'Current Location';
+    }
 
     locations.add(
       BookingLocationRequest(

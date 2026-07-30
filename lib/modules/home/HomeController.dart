@@ -326,7 +326,7 @@ class HomeController extends GetxController {
                 currentAddress.value.isNotEmpty &&
                         !currentAddress.value.startsWith('Enable GOOGLE_')
                     ? currentAddress.value
-                    : 'Location (${latlng.latitude.toStringAsFixed(4)}, ${latlng.longitude.toStringAsFixed(4)})';
+                    : 'Current Location';
             pickupAddress.value = dynamicFallback;
             currentAddress.value = dynamicFallback;
           }

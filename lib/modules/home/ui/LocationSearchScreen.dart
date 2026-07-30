@@ -356,7 +356,7 @@ class _LocationSummaryTile extends StatelessWidget {
                   color: AppColors.textPrimary,
                 ),
               ),
-              if (subtitle.isNotEmpty) ...[
+              if (subtitle.isNotEmpty && subtitle != title) ...[
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
@@ -365,19 +365,6 @@ class _LocationSummaryTile extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 12,
                     height: 1.35,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-              if (coordinates.isNotEmpty) ...[
-                const SizedBox(height: 3),
-                Text(
-                  coordinates,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
                   ),
                 ),
