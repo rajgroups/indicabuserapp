@@ -17,7 +17,7 @@ class BookingController extends GetxController {
   BookingController() : _repository = BookingRepository(ApiClient());
 
   final BookingRepository _repository;
-  final HomeController _homeController = Get.find<HomeController>();
+  HomeController get _homeController => Get.find<HomeController>();
 
   final RxBool isSubmitting = false.obs;
   final RxString selectedMode = ''.obs;
@@ -237,11 +237,13 @@ class BookingController extends GetxController {
     final locations = <BookingLocationRequest>[];
     final String pickupAddr =
         _homeController.pickupAddress.value.trim().isNotEmpty
-            ? _homeController.pickupAddress.value
-            : (_homeController.currentAddress.value.trim().isNotEmpty &&
-                    !_homeController.currentAddress.value.startsWith('Enable GOOGLE_')
-                ? _homeController.currentAddress.value
-                : 'Location (${pickupLocation.latitude.toStringAsFixed(4)}, ${pickupLocation.longitude.toStringAsFixed(4)})');
+        ? _homeController.pickupAddress.value
+        : (_homeController.currentAddress.value.trim().isNotEmpty &&
+                  !_homeController.currentAddress.value.startsWith(
+                    'Enable GOOGLE_',
+                  )
+              ? _homeController.currentAddress.value
+              : 'Location (${pickupLocation.latitude.toStringAsFixed(4)}, ${pickupLocation.longitude.toStringAsFixed(4)})');
 
     locations.add(
       BookingLocationRequest(

@@ -7,10 +7,17 @@ import 'package:indicab/core/repository/SosRepository.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SosScreen extends StatefulWidget {
-  const SosScreen({super.key, required this.bookingNo});
+  const SosScreen({
+    super.key,
+    required this.bookingNo,
+    this.defaultTriggerType,
+    this.autoTriggerDefault = false,
+  });
 
   /// The active booking's unique identifier (booking_no / ulid).
   final String bookingNo;
+  final String? defaultTriggerType;
+  final bool autoTriggerDefault;
 
   @override
   State<SosScreen> createState() => _SosScreenState();
@@ -25,11 +32,37 @@ class _SosScreenState extends State<SosScreen> {
   /// Track which types have been successfully triggered.
   final Set<String> _triggeredTypes = {};
 
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.autoTriggerDefault &&
+        widget.defaultTriggerType != null &&
+        widget.defaultTriggerType!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final defaultType = widget.defaultTriggerType!;
+        final defaultDialNumber = _dialNumberForType(defaultType);
+        _triggerSos(type: defaultType, dialNumber: defaultDialNumber);
+      });
+    }
+  }
+
   Future<void> _triggerSos({
     required String type,
     required String dialNumber,
   }) async {
     if (_loadingType != null) return; // Prevent multiple simultaneous taps
+
+    final bookingNo = widget.bookingNo.trim();
+    if (bookingNo.isEmpty) {
+      _showSnackbar(
+        title: 'Error',
+        message: 'Missing booking reference. Please reopen SOS from the active ride.',
+        isError: true,
+      );
+      return;
+    }
 
     // Dial phone for police / ambulance first
     if (dialNumber.isNotEmpty) {
@@ -43,7 +76,7 @@ class _SosScreenState extends State<SosScreen> {
 
     try {
       await _sosRepo.sendSosAlert(
-        bookingNo: widget.bookingNo,
+        bookingNo: bookingNo,
         type: type,
       );
 
@@ -73,6 +106,17 @@ class _SosScreenState extends State<SosScreen> {
       }
     } finally {
       if (mounted) setState(() => _loadingType = null);
+    }
+  }
+
+  String _dialNumberForType(String type) {
+    switch (type) {
+      case 'police':
+        return '100';
+      case 'ambulance':
+        return '108';
+      default:
+        return '';
     }
   }
 

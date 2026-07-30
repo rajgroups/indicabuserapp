@@ -1297,6 +1297,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                                       bookingNo: widget.bookingNo ??
                                           _bookingData?.bookingNo ??
                                           '',
+                                      defaultTriggerType: 'safety_team',
+                                      autoTriggerDefault: true,
                                     )),
                             borderRadius: BorderRadius.circular(18),
                             child: Container(

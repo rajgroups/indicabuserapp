@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -31,10 +30,8 @@ class FindingDriverScreen extends StatefulWidget {
 }
 
 class _FindingDriverScreenState extends State<FindingDriverScreen>
-    with TickerProviderStateMixin {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final BookingRepository _bookingRepository = BookingRepository(ApiClient());
-  Timer? _statusTimer;
-  bool _isRefreshing = false;
   String _statusText = 'Finding your ride...';
   BookingDataModel? _bookingData;
   late final AnimationController _pulseController;
@@ -49,6 +46,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
   void initState() {
     super.initState();
     _bookingData = widget.bookingData;
+    WidgetsBinding.instance.addObserver(this);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
@@ -72,11 +70,19 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
       }
 
       if (_bookingNo.isNotEmpty) {
-        _startStatusPolling();
+        _fetchBookingStatus();
       } else if (widget.bookingRequest != null) {
-        _createBookingAndStartPolling();
+        _createBookingAndFetch();
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && _bookingNo.isNotEmpty) {
+      _fetchBookingStatus(silent: true);
+    }
   }
 
   String get _bookingNo => _localBookingNo?.trim() ?? widget.bookingNo?.trim() ?? '';
@@ -120,26 +126,14 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     };
   }
 
-  DateTime? _searchStartTime;
-
-  void _startStatusPolling() {
-    _searchStartTime = DateTime.now();
-    _statusTimer?.cancel();
-    _refreshBookingStatus();
-    _statusTimer = Timer.periodic(
-      const Duration(seconds: 3),
-      (_) => _refreshBookingStatus(),
-    );
-  }
-
   void _handleRetry() {
     // Always create a fresh booking on retry (do not reuse expired booking)
     if (widget.bookingRequest != null) {
-      _createBookingAndStartPolling();
+      _createBookingAndFetch();
     } else if (_bookingNo.isNotEmpty) {
       _retryExistingBooking();
     } else {
-      _createBookingAndStartPolling();
+      _createBookingAndFetch();
     }
   }
 
@@ -159,7 +153,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     final bookingModel = BookingDataModel.fromJson(booking);
 
     if (status == 'no_driver_available' || status == 'expired') {
-      _statusTimer?.cancel();
       if (mounted) {
         setState(() {
           _bookingData = bookingModel;
@@ -171,7 +164,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
 
     if (status == 'accepted' || status == 'driver_assigned') {
-      _statusTimer?.cancel();
       if (Get.currentRoute != RouteNames.activeRide) {
         Get.offAllNamed(
           RouteNames.activeRide,
@@ -182,7 +174,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
 
     if (status == 'started') {
-      _statusTimer?.cancel();
       if (Get.currentRoute != RouteNames.activeRide) {
         Get.offAllNamed(
           RouteNames.activeRide,
@@ -193,7 +184,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
 
     if (status == 'completed') {
-      _statusTimer?.cancel();
       if (Get.currentRoute != RouteNames.rideSummary) {
         Get.offAllNamed(
           RouteNames.rideSummary,
@@ -203,7 +193,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
   }
 
-  Future<void> _createBookingAndStartPolling() async {
+  Future<void> _createBookingAndFetch() async {
     if (_isCreatingBooking || !mounted) {
       return;
     }
@@ -239,8 +229,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
         _isCreatingBooking = false;
         _statusText = 'Finding your ride...';
       });
-
-      _startStatusPolling();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -278,8 +266,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
         _isCreatingBooking = false;
         _statusText = 'Finding your ride...';
       });
-
-      _startStatusPolling();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -290,22 +276,17 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
   }
 
-  Future<void> _refreshBookingStatus() async {
-    if (_isRefreshing || _bookingNo.isEmpty || !mounted) {
+  Future<void> _fetchBookingStatus({bool silent = false}) async {
+    if (_bookingNo.isEmpty || !mounted) {
       return;
     }
 
-    if (_searchStartTime != null &&
-        DateTime.now().difference(_searchStartTime!).inSeconds > 60) {
-      _statusTimer?.cancel();
+    if (!silent && mounted) {
       setState(() {
-        _statusText = 'Booking failed';
-        _bookingError = 'No drivers accepted your ride request. Please try again.';
+        _statusText = 'Syncing ride status...';
       });
-      return;
     }
 
-    _isRefreshing = true;
     try {
       final response = await _bookingRepository.getBooking(
         _bookingNo,
@@ -323,7 +304,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
 
       final status = booking.status?.trim().toLowerCase();
       if (status == 'accepted' || status == 'driver_assigned') {
-        _statusTimer?.cancel();
         if (Get.currentRoute != RouteNames.activeRide) {
           Get.offAllNamed(
             RouteNames.activeRide,
@@ -331,7 +311,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
           );
         }
       } else if (status == 'started') {
-        _statusTimer?.cancel();
         if (Get.currentRoute != RouteNames.activeRide) {
           Get.offAllNamed(
             RouteNames.activeRide,
@@ -339,7 +318,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
           );
         }
       } else if (status == 'completed') {
-        _statusTimer?.cancel();
         if (Get.currentRoute != RouteNames.rideSummary) {
           Get.offAllNamed(
             RouteNames.rideSummary,
@@ -347,7 +325,6 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
           );
         }
       } else if (status == 'no_driver_available') {
-        _statusTimer?.cancel();
         setState(() {
           _statusText = 'No driver available';
           _bookingError = 'No drivers accepted your ride request. Please try again.';
@@ -363,14 +340,12 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
           _statusText = 'Waiting for ride updates...';
         });
       }
-    } finally {
-      _isRefreshing = false;
     }
   }
 
   @override
   void dispose() {
-    _statusTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _pulseController.dispose();
     _routeController.dispose();
     _searchController.dispose();

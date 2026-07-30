@@ -5,9 +5,9 @@ import 'package:indicab/core/controller/BookingController.dart';
 class HomeBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut<HomeController>(() => HomeController());
+    Get.put<HomeController>(HomeController());
     if (!Get.isRegistered<BookingController>()) {
-      Get.lazyPut<BookingController>(() => BookingController());
+      Get.put<BookingController>(BookingController());
     }
   }
 }

@@ -55,7 +55,8 @@ class HomeScreen extends GetView<HomeController> {
                               'vehicle_type': activeRide.categoryName,
                             },
                           );
-                        } else if (status == 'accepted' || status == 'started') {
+                        } else if (status == 'accepted' ||
+                            status == 'started') {
                           Get.toNamed(
                             RouteNames.activeRide,
                             arguments: bookingArgs,
@@ -163,14 +164,19 @@ class HomeScreen extends GetView<HomeController> {
                                       final option =
                                           controller.vehicleTypes[index];
                                       final isSelected =
-                                          controller.selectedVehicle.value?.id ==
-                                              option.id;
+                                          controller
+                                              .selectedVehicle
+                                              .value
+                                              ?.id ==
+                                          option.id;
 
                                       return VehicleCard(
                                         option: option,
                                         isSelected: isSelected,
                                         onTap: () {
-                                          controller.toggleVehicleSelection(option);
+                                          controller.toggleVehicleSelection(
+                                            option,
+                                          );
                                           if (!isSelected) {
                                             _openVehicleSheet(context, option);
                                           }
@@ -388,7 +394,11 @@ class HomeScreen extends GetView<HomeController> {
                   if (!parentContext.mounted) {
                     return;
                   }
-                  Get.find<BookingController>().showBookingModeDialog(
+                  final bookingController =
+                      Get.isRegistered<BookingController>()
+                      ? Get.find<BookingController>()
+                      : Get.put<BookingController>(BookingController());
+                  bookingController.showBookingModeDialog(
                     parentContext,
                     option,
                     subCategory,
@@ -470,11 +480,7 @@ class _ActiveRideFloatingCard extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: Icon(
-                      _icon,
-                      color: AppColors.primary,
-                      size: 24,
-                    ),
+                    child: Icon(_icon, color: AppColors.primary, size: 24),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -507,7 +513,10 @@ class _ActiveRideFloatingCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(12),
