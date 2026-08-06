@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/constants/Keys.dart';
 import 'package:indicab/core/models/booking_request.dart';
 import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/core/network/client.dart';
@@ -10,6 +11,8 @@ import 'package:indicab/core/network/network_exceptions.dart';
 import 'package:indicab/core/repository/BookingRepository.dart';
 import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/core/services/SocketService.dart';
+import 'package:indicab/core/services/StorageService.dart';
+import 'package:indicab/modules/home/HomeController.dart';
 
 class FindingDriverScreen extends StatefulWidget {
   const FindingDriverScreen({
@@ -32,6 +35,7 @@ class FindingDriverScreen extends StatefulWidget {
 class _FindingDriverScreenState extends State<FindingDriverScreen>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   final BookingRepository _bookingRepository = BookingRepository(ApiClient());
+  final StorageService _storage = StorageService();
   String _statusText = 'Finding your ride...';
   BookingDataModel? _bookingData;
   late final AnimationController _pulseController;
@@ -39,13 +43,18 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
   late final AnimationController _searchController;
 
   String? _localBookingNo;
+  String? _localVehicleType;
   bool _isCreatingBooking = false;
+  bool _isCancelling = false;
   String? _bookingError;
 
   @override
   void initState() {
     super.initState();
     _bookingData = widget.bookingData;
+    _localBookingNo = widget.bookingNo?.trim();
+    _localVehicleType = widget.vehicleType?.trim();
+    _restorePendingRideState();
     WidgetsBinding.instance.addObserver(this);
     _pulseController = AnimationController(
       vsync: this,
@@ -87,8 +96,58 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
 
   String get _bookingNo => _localBookingNo?.trim() ?? widget.bookingNo?.trim() ?? '';
 
+  void _restorePendingRideState() {
+    if (_localBookingNo == null || _localBookingNo!.trim().isEmpty) {
+      final storedBookingNo = _storage.read(StorageKeys.pendingRideBookingNo);
+      if (storedBookingNo is String && storedBookingNo.trim().isNotEmpty) {
+        _localBookingNo = storedBookingNo.trim();
+      }
+    }
+
+    if (_localVehicleType == null || _localVehicleType!.trim().isEmpty) {
+      final storedVehicleType = _storage.read(StorageKeys.pendingRideVehicleType);
+      if (storedVehicleType is String && storedVehicleType.trim().isNotEmpty) {
+        _localVehicleType = storedVehicleType.trim();
+      }
+    }
+  }
+
+  void _persistPendingRideState({
+    String? bookingNo,
+    String? vehicleType,
+  }) {
+    final normalizedBookingNo = bookingNo?.trim();
+    if (normalizedBookingNo == null || normalizedBookingNo.isEmpty) {
+      return;
+    }
+
+    _storage.write(StorageKeys.pendingRideBookingNo, normalizedBookingNo);
+
+    final normalizedVehicleType = vehicleType?.trim();
+    if (normalizedVehicleType != null && normalizedVehicleType.isNotEmpty) {
+      _storage.write(
+        StorageKeys.pendingRideVehicleType,
+        normalizedVehicleType,
+      );
+    }
+  }
+
+  void _clearPendingRideState() {
+    _storage.delete(StorageKeys.pendingRideBookingNo);
+    _storage.delete(StorageKeys.pendingRideVehicleType);
+  }
+
+  String? get _resolvedVehicleType {
+    final value = _localVehicleType ?? widget.vehicleType;
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
   String get _vehicleTypeLabel {
-    final value = widget.vehicleType?.trim();
+    final value = _resolvedVehicleType;
     if (value == null || value.isEmpty) {
       return 'ride';
     }
@@ -137,6 +196,43 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
   }
 
+  Future<void> _handleCancel() async {
+    if (_isCancelling) {
+      return;
+    }
+
+    final bookingNoToCancel = _bookingNo;
+
+    if (mounted) {
+      setState(() {
+        _isCancelling = true;
+      });
+    }
+
+    if (bookingNoToCancel.isNotEmpty) {
+      try {
+        await _bookingRepository.cancelBooking(bookingNoToCancel);
+      } catch (e) {
+        debugPrint('FindingDriverScreen._handleCancel error: $e');
+      }
+    }
+
+    _clearPendingRideState();
+
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().activeRide.value = null;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    await Get.offAllNamed(
+      RouteNames.home,
+      arguments: <String, dynamic>{'from_active_ride': true},
+    );
+  }
+
   /// Handle booking status updates received via WebSocket.
   void _onBookingStatusSocket(dynamic data) {
     if (data is! Map<String, dynamic> || !mounted) return;
@@ -160,10 +256,15 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
           _bookingError = 'No drivers accepted your booking. Please try again.';
         });
       }
+      _persistPendingRideState(
+        bookingNo: bookingModel.bookingNo ?? _bookingNo,
+        vehicleType: bookingModel.categoryName ?? _resolvedVehicleType,
+      );
       return;
     }
 
     if (status == 'accepted' || status == 'driver_assigned') {
+      _clearPendingRideState();
       if (Get.currentRoute != RouteNames.activeRide) {
         Get.offAllNamed(
           RouteNames.activeRide,
@@ -174,6 +275,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
 
     if (status == 'started') {
+      _clearPendingRideState();
       if (Get.currentRoute != RouteNames.activeRide) {
         Get.offAllNamed(
           RouteNames.activeRide,
@@ -184,6 +286,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
 
     if (status == 'completed') {
+      _clearPendingRideState();
       if (Get.currentRoute != RouteNames.rideSummary) {
         Get.offAllNamed(
           RouteNames.rideSummary,
@@ -229,6 +332,10 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
         _isCreatingBooking = false;
         _statusText = 'Finding your ride...';
       });
+      _persistPendingRideState(
+        bookingNo: response.data?.bookingNo,
+        vehicleType: response.data?.categoryName ?? _resolvedVehicleType,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -266,6 +373,10 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
         _isCreatingBooking = false;
         _statusText = 'Finding your ride...';
       });
+      _persistPendingRideState(
+        bookingNo: response.data?.bookingNo ?? _bookingNo,
+        vehicleType: response.data?.categoryName ?? _resolvedVehicleType,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -301,9 +412,14 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
         _bookingData = booking;
         _statusText = _statusLabelFor(booking.status);
       });
+      _persistPendingRideState(
+        bookingNo: booking.bookingNo ?? _bookingNo,
+        vehicleType: booking.categoryName ?? _resolvedVehicleType,
+      );
 
       final status = booking.status?.trim().toLowerCase();
       if (status == 'accepted' || status == 'driver_assigned') {
+        _clearPendingRideState();
         if (Get.currentRoute != RouteNames.activeRide) {
           Get.offAllNamed(
             RouteNames.activeRide,
@@ -311,6 +427,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
           );
         }
       } else if (status == 'started') {
+        _clearPendingRideState();
         if (Get.currentRoute != RouteNames.activeRide) {
           Get.offAllNamed(
             RouteNames.activeRide,
@@ -318,6 +435,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
           );
         }
       } else if (status == 'completed') {
+        _clearPendingRideState();
         if (Get.currentRoute != RouteNames.rideSummary) {
           Get.offAllNamed(
             RouteNames.rideSummary,
@@ -329,6 +447,10 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
           _statusText = 'No driver available';
           _bookingError = 'No drivers accepted your ride request. Please try again.';
         });
+        _persistPendingRideState(
+          bookingNo: booking.bookingNo ?? _bookingNo,
+          vehicleType: booking.categoryName ?? _resolvedVehicleType,
+        );
       }
     } catch (error) {
       if (error is NetworkException && error.statusCode == 401) {
@@ -351,6 +473,12 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     _searchController.dispose();
     final socketService = Get.find<SocketService>();
     socketService.off('booking_status', _onBookingStatusSocket);
+    if (_bookingError != null && _bookingNo.isNotEmpty) {
+      _persistPendingRideState(
+        bookingNo: _bookingNo,
+        vehicleType: _resolvedVehicleType,
+      );
+    }
     super.dispose();
   }
 
@@ -389,12 +517,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
                   Row(
                     children: [
                       InkWell(
-                        onTap: () {
-                          Get.offAllNamed(
-                            RouteNames.home,
-                            arguments: <String, dynamic>{'from_active_ride': true},
-                          );
-                        },
+                        onTap: _isCancelling ? null : _handleCancel,
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
                           width: 52,
@@ -472,10 +595,9 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
                     bookingData: _bookingData,
                     bookingError: _bookingError,
                     isCreatingBooking: _isCreatingBooking,
+                    isCancelling: _isCancelling,
                     onRetry: _handleRetry,
-                    onCancel: () {
-                      Get.back();
-                    },
+                    onCancel: _handleCancel,
                   ),
                 ],
               ),
@@ -559,6 +681,7 @@ class _SearchCard extends StatelessWidget {
     required this.bookingData,
     required this.bookingError,
     required this.isCreatingBooking,
+    required this.isCancelling,
     required this.onRetry,
     required this.onCancel,
   });
@@ -572,6 +695,7 @@ class _SearchCard extends StatelessWidget {
   final BookingDataModel? bookingData;
   final String? bookingError;
   final bool isCreatingBooking;
+  final bool isCancelling;
   final VoidCallback onRetry;
   final VoidCallback onCancel;
 
@@ -752,7 +876,7 @@ class _SearchCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: TextButton(
-              onPressed: onCancel,
+              onPressed: isCancelling ? null : onCancel,
               style: TextButton.styleFrom(
                 foregroundColor: Colors.red,
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -761,10 +885,19 @@ class _SearchCard extends StatelessWidget {
                 ),
                 backgroundColor: Colors.red.withValues(alpha: 0.05),
               ),
-              child: const Text(
-                'Cancel Request',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
+              child: isCancelling
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.red,
+                      ),
+                    )
+                  : const Text(
+                      'Cancel Request',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
             ),
           ),
         ],

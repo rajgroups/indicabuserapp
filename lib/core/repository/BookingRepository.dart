@@ -54,6 +54,23 @@ class BookingRepository {
     throw Exception('Unexpected booking response format.');
   }
 
+  Future<BookingResponseModel> cancelBooking(
+    String bookingNo, {
+    String? reason,
+  }) async {
+    final response = await _apiClient.post(
+      '${ApiEndpoints.bookings}/$bookingNo/cancel',
+      data: reason != null ? {'reason': reason} : null,
+    );
+
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) {
+      return BookingResponseModel.fromJson(payload);
+    }
+
+    throw Exception('Unexpected booking response format.');
+  }
+
   Future<BookingResponseModel> getActiveRide() async {
     final response = await _apiClient.get(ApiEndpoints.bookingActive);
 

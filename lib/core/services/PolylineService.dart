@@ -192,27 +192,54 @@ class PolylineService {
     return earthRadius * 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
   }
 
-  /// Reverse geocode LatLng coordinates into a human-readable street address using Google Geocoding API.
+  /// Reverse geocode LatLng coordinates into a human-readable street address using Google Geocoding API or OpenStreetMap Nominatim.
   Future<String?> reverseGeocode(double lat, double lng) async {
     final key = AppEnv.hasGoogleMapsApiKey
         ? AppEnv.googleMapsApiKey
         : (AppEnv.hasGooglePlacesApiKey ? AppEnv.googlePlacesApiKey : '');
-    if (key.isEmpty) return null;
 
+    if (key.isNotEmpty) {
+      try {
+        final url =
+            'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$key';
+        final response = await _dio.get(url);
+
+        if (response.statusCode == 200 && response.data['status'] == 'OK') {
+          final results = response.data['results'] as List;
+          if (results.isNotEmpty) {
+            final addr = results[0]['formatted_address'] as String?;
+            if (addr != null && addr.trim().isNotEmpty) {
+              return addr.trim();
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('PolylineService: Google reverse geocode error: $e');
+      }
+    }
+
+    // Fallback: OpenStreetMap Nominatim reverse geocode (Free & reliable street address)
     try {
       final url =
-          'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$key';
-      final response = await _dio.get(url);
+          'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=json&addressdetails=1';
+      final response = await _dio.get(
+        url,
+        options: Options(
+          headers: {'User-Agent': 'IndicabUserApp/1.0'},
+        ),
+      );
 
-      if (response.statusCode == 200 && response.data['status'] == 'OK') {
-        final results = response.data['results'] as List;
-        if (results.isNotEmpty) {
-          return results[0]['formatted_address'] as String?;
+      if (response.statusCode == 200 && response.data is Map) {
+        final data = response.data as Map<String, dynamic>;
+        final displayName = data['display_name'] as String?;
+        if (displayName != null && displayName.trim().isNotEmpty) {
+          return displayName.trim();
         }
       }
     } catch (e) {
-      debugPrint('PolylineService: Reverse geocode error: $e');
+      debugPrint('PolylineService: Nominatim reverse geocode error: $e');
     }
+
     return null;
   }
 

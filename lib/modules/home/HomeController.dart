@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -37,7 +36,6 @@ class HomeController extends GetxController {
   );
 
   final VehicleCategoryService _vehicleService = VehicleCategoryService();
-  final Dio _placesClient = Dio();
 
   final RxBool isLoading = false.obs;
   final RxBool isAddressLoading = false.obs;
@@ -111,6 +109,47 @@ class HomeController extends GetxController {
     return null;
   }
 
+  void _persistPendingRideState(BookingDataModel booking) {
+    final bookingNo = booking.bookingNo?.trim();
+    if (bookingNo == null || bookingNo.isEmpty) {
+      return;
+    }
+
+    _storage.write(StorageKeys.pendingRideBookingNo, bookingNo);
+
+    final vehicleType = booking.categoryName?.trim();
+    if (vehicleType != null && vehicleType.isNotEmpty) {
+      _storage.write(StorageKeys.pendingRideVehicleType, vehicleType);
+    }
+  }
+
+  void _clearPendingRideState() {
+    _storage.delete(StorageKeys.pendingRideBookingNo);
+    _storage.delete(StorageKeys.pendingRideVehicleType);
+  }
+
+  void _restorePendingRideFromStorage() {
+    if (Get.currentRoute != RouteNames.home) {
+      return;
+    }
+
+    final bookingNo = _storage.read(StorageKeys.pendingRideBookingNo);
+    if (bookingNo is! String || bookingNo.trim().isEmpty) {
+      return;
+    }
+
+    final vehicleType = _storage.read(StorageKeys.pendingRideVehicleType);
+    final arguments = <String, dynamic>{
+      'booking_no': bookingNo.trim(),
+    };
+
+    if (vehicleType is String && vehicleType.trim().isNotEmpty) {
+      arguments['vehicle_type'] = vehicleType.trim();
+    }
+
+    _redirectToRide(RouteNames.findingDriver, arguments);
+  }
+
   Future<void> setPickup(dynamic place) async {
     final latlng = LatLng(double.parse(place.lat), double.parse(place.lng));
 
@@ -148,7 +187,7 @@ class HomeController extends GetxController {
     final pickup = pickuplocation.value ?? pickupPoint.value;
     final drop = droplocation.value;
 
-    if (pickup != null && drop != null) {
+    if (drop != null) {
       final routeResult = await _polylineService.fetchRoute(
         pickup,
         drop,
@@ -288,6 +327,27 @@ class HomeController extends GetxController {
     await _checkActiveRide();
   }
 
+  void _setPickupAddressDetails(String address) {
+    final trimmed = address.trim();
+    if (trimmed.isEmpty) return;
+
+    pickupAddress.value = trimmed;
+    currentAddress.value = trimmed;
+    originController.text = trimmed;
+
+    final parts = trimmed
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (parts.length >= 2) {
+      pickupPlaceName.value = parts.take(2).join(', ');
+    } else if (parts.isNotEmpty) {
+      pickupPlaceName.value = parts.first;
+    }
+  }
+
   Future<void> detectAndSetCurrentLocation() async {
     try {
       final LocationService locationService = LocationService();
@@ -311,14 +371,14 @@ class HomeController extends GetxController {
         polylines.refresh();
         _updateMarkers();
 
-        // Perform Google Geocoding API reverse lookup (fresh, no cache)
+        // Perform reverse lookup (Google + OpenStreetMap fallback)
         final address = await _polylineService.reverseGeocode(
           position.latitude,
           position.longitude,
         );
+
         if (address != null && address.trim().isNotEmpty) {
-          pickupAddress.value = address;
-          currentAddress.value = address;
+          _setPickupAddressDetails(address);
         } else {
           await refreshAddressFor(latlng);
           if (pickupAddress.value.isEmpty) {
@@ -327,12 +387,11 @@ class HomeController extends GetxController {
                         !currentAddress.value.startsWith('Enable GOOGLE_')
                     ? currentAddress.value
                     : 'Current Location';
-            pickupAddress.value = dynamicFallback;
-            currentAddress.value = dynamicFallback;
+            _setPickupAddressDetails(dynamicFallback);
           }
         }
+
         pickupCoordinates.value = _formatCoordinates(latlng);
-        originController.text = pickupAddress.value;
 
         // Force-refresh polyline with new pickup position
         await updateRoutePolyline(forceRefresh: true);
@@ -368,6 +427,7 @@ class HomeController extends GetxController {
       activeRide.value = booking;
 
       if (booking == null) {
+        _restorePendingRideFromStorage();
         return;
       }
 
@@ -382,7 +442,10 @@ class HomeController extends GetxController {
 
       final status = booking.status?.trim().toLowerCase();
 
-      if (status == 'pending') {
+      if (status == 'pending' ||
+          status == 'no_driver_available' ||
+          status == 'expired') {
+        _persistPendingRideState(booking);
         final bookingArgs = <String, dynamic>{
           'booking_no': booking.bookingNo,
           'booking_data': booking,
@@ -390,17 +453,22 @@ class HomeController extends GetxController {
         };
         _redirectToRide(RouteNames.findingDriver, bookingArgs);
       } else if (status == 'accepted' || status == 'arrived' || status == 'started') {
+        _clearPendingRideState();
         final bookingArgs = <String, dynamic>{
           'booking_no': booking.bookingNo,
           'booking_data': booking,
         };
         _redirectToRide(RouteNames.activeRide, bookingArgs);
       } else if (status == 'completed') {
+        _clearPendingRideState();
         final bookingArgs = <String, dynamic>{
           'booking_no': booking.bookingNo,
           'booking_data': booking,
         };
         _redirectToRide(RouteNames.rideSummary, bookingArgs);
+      } else if (status == 'cancelled') {
+        _clearPendingRideState();
+        activeRide.value = null;
       }
     } catch (error) {
       debugPrint('HomeController._checkActiveRide error: $error');
@@ -432,36 +500,18 @@ class HomeController extends GetxController {
   }
 
   Future<void> refreshAddressFor(LatLng point) async {
-    if (!AppEnv.hasGooglePlacesApiKey) {
-      debugPrint('Places key missing or dummy, skipping reverse geocoding');
-      currentAddress.value = 'Enable GOOGLE_PLACES_API_KEY for live address';
-      return;
-    }
-
     isAddressLoading.value = true;
 
     try {
-      final response = await _placesClient.get(
-        'https://maps.googleapis.com/maps/api/geocode/json',
-        queryParameters: {
-          'latlng': '${point.latitude},${point.longitude}',
-          'key': AppEnv.googlePlacesApiKey,
-        },
+      final address = await _polylineService.reverseGeocode(
+        point.latitude,
+        point.longitude,
       );
 
-      final results = response.data['results'] as List<dynamic>? ?? [];
-      final firstResult = results.isNotEmpty ? results.first : null;
-      final formattedAddress = firstResult is Map<String, dynamic>
-          ? firstResult['formatted_address'] as String?
-          : null;
-
-      if (formattedAddress != null && formattedAddress.trim().isNotEmpty) {
-        pickupPlaceName.value = '';
-        currentAddress.value = formattedAddress;
-        pickupAddress.value = formattedAddress;
+      if (address != null && address.trim().isNotEmpty) {
+        _setPickupAddressDetails(address);
         pickupCoordinates.value = _formatCoordinates(point);
-        originController.text = formattedAddress;
-        debugPrint('Reverse geocoded address: $formattedAddress');
+        debugPrint('Reverse geocoded address: $address');
       }
     } catch (error) {
       debugPrint('HomeController.refreshAddressFor error: $error');

@@ -121,7 +121,7 @@ class LocationSearchScreen extends GetView<HomeController> {
                       onPressed: () async {
                         Get.snackbar(
                           'GPS Location',
-                          'Detecting current location...',
+                          'Detecting current location address...',
                           backgroundColor: AppColors.surface,
                           duration: const Duration(seconds: 2),
                         );
@@ -204,6 +204,24 @@ class LocationSearchScreen extends GetView<HomeController> {
                       return const SizedBox.shrink();
                     }
 
+                    final pPlace = controller.pickupPlaceName.value;
+                    final pAddr = controller.pickupAddress.value;
+                    final pTitle = pPlace.isNotEmpty
+                        ? pPlace
+                        : (pAddr.isNotEmpty ? pAddr : 'Current Location');
+                    final pSubtitle = pAddr.isNotEmpty && pAddr != pTitle
+                        ? pAddr
+                        : controller.pickupCoordinates.value;
+
+                    final dPlace = controller.dropPlaceName.value;
+                    final dAddr = controller.dropAddress.value;
+                    final dTitle = dPlace.isNotEmpty
+                        ? dPlace
+                        : (dAddr.isNotEmpty ? dAddr : 'Drop Location');
+                    final dSubtitle = dAddr.isNotEmpty && dAddr != dTitle
+                        ? dAddr
+                        : controller.dropCoordinates.value;
+
                     return Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(top: 14),
@@ -218,24 +236,18 @@ class LocationSearchScreen extends GetView<HomeController> {
                           if (hasPickup)
                             _LocationSummaryTile(
                               icon: Icons.my_location_rounded,
-                              label: 'Pickup selected',
-                              title: controller.pickupPlaceName.value.isNotEmpty
-                                  ? controller.pickupPlaceName.value
-                                  : controller.pickupAddress.value,
-                              subtitle: controller.pickupAddress.value,
-                              coordinates: controller.pickupCoordinates.value,
+                              label: 'Pickup Selected',
+                              title: pTitle,
+                              subtitle: pSubtitle,
                             ),
                           if (hasPickup && hasDrop)
                             const SizedBox(height: 12),
                           if (hasDrop)
                             _LocationSummaryTile(
                               icon: Icons.location_on_rounded,
-                              label: 'Drop selected',
-                              title: controller.dropPlaceName.value.isNotEmpty
-                                  ? controller.dropPlaceName.value
-                                  : controller.dropAddress.value,
-                              subtitle: controller.dropAddress.value,
-                              coordinates: controller.dropCoordinates.value,
+                              label: 'Drop Selected',
+                              title: dTitle,
+                              subtitle: dSubtitle,
                             ),
                         ],
                       ),
@@ -309,14 +321,12 @@ class _LocationSummaryTile extends StatelessWidget {
     required this.label,
     required this.title,
     required this.subtitle,
-    required this.coordinates,
   });
 
   final IconData icon;
   final String label;
   final String title;
   final String subtitle;
-  final String coordinates;
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +358,7 @@ class _LocationSummaryTile extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 title,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 14,
