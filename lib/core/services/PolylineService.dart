@@ -192,8 +192,15 @@ class PolylineService {
     return earthRadius * 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
   }
 
+  static final Map<String, String> _addressCache = {};
+
   /// Reverse geocode LatLng coordinates into a human-readable street address using Google Geocoding API or OpenStreetMap Nominatim.
   Future<String?> reverseGeocode(double lat, double lng) async {
+    final cacheKey = '${lat.toStringAsFixed(4)},${lng.toStringAsFixed(4)}';
+    if (_addressCache.containsKey(cacheKey)) {
+      return _addressCache[cacheKey];
+    }
+
     final key = AppEnv.hasGoogleMapsApiKey
         ? AppEnv.googleMapsApiKey
         : (AppEnv.hasGooglePlacesApiKey ? AppEnv.googlePlacesApiKey : '');
@@ -209,7 +216,9 @@ class PolylineService {
           if (results.isNotEmpty) {
             final addr = results[0]['formatted_address'] as String?;
             if (addr != null && addr.trim().isNotEmpty) {
-              return addr.trim();
+              final formatted = addr.trim();
+              _addressCache[cacheKey] = formatted;
+              return formatted;
             }
           }
         }
@@ -233,7 +242,9 @@ class PolylineService {
         final data = response.data as Map<String, dynamic>;
         final displayName = data['display_name'] as String?;
         if (displayName != null && displayName.trim().isNotEmpty) {
-          return displayName.trim();
+          final formatted = displayName.trim();
+          _addressCache[cacheKey] = formatted;
+          return formatted;
         }
       }
     } catch (e) {

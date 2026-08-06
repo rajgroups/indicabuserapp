@@ -275,6 +275,23 @@ class SocketService extends GetxService with WidgetsBindingObserver {
       'booking_data': bookingData,
     };
 
+    // Handle cancellation: if user is on the active ride screen, go back to home
+    if (status == 'cancelled') {
+      if (Get.currentRoute == RouteNames.activeRide ||
+          Get.currentRoute == RouteNames.findingDriver) {
+        Get.snackbar(
+          'Ride Cancelled',
+          'Your booking has been cancelled.',
+          backgroundColor: const Color(0xFFF57C00),
+          colorText: const Color(0xFFFFFFFF),
+          snackPosition: SnackPosition.TOP,
+          duration: const Duration(seconds: 3),
+        );
+        Get.offAllNamed(RouteNames.home);
+      }
+      return;
+    }
+
     if (status == 'accepted' && Get.currentRoute != RouteNames.activeRide) {
       Get.offAllNamed(RouteNames.activeRide, arguments: arguments);
       return;

@@ -348,7 +348,7 @@ class HomeController extends GetxController {
     }
   }
 
-  Future<void> detectAndSetCurrentLocation() async {
+  Future<void> detectAndSetCurrentLocation({bool force = false}) async {
     try {
       final LocationService locationService = LocationService();
       final context = Get.context;
@@ -357,21 +357,29 @@ class HomeController extends GetxController {
       if (position != null) {
         final latlng = LatLng(position.latitude, position.longitude);
 
-        // Clear all stale location data before updating
+        if (!force &&
+            pickuplocation.value != null &&
+            pickupAddress.value.isNotEmpty) {
+          const double earthRadiusMeters = 6371000;
+          final dLat = (latlng.latitude - pickuplocation.value!.latitude) * math.pi / 180;
+          final dLng = (latlng.longitude - pickuplocation.value!.longitude) * math.pi / 180;
+          final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+              math.cos(pickuplocation.value!.latitude * math.pi / 180) *
+                  math.cos(latlng.latitude * math.pi / 180) *
+                  math.sin(dLng / 2) *
+                  math.sin(dLng / 2);
+          final distMeters = earthRadiusMeters * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+
+          if (distMeters < 50) {
+            return;
+          }
+        }
+
         pickupPoint.value = latlng;
         pickuplocation.value = latlng;
-        pickupPlaceName.value = '';
-        pickupAddress.value = '';
         pickupCoordinates.value = _formatCoordinates(latlng);
-        originController.text = '';
-
-        // Force-clear polyline cache so new pickup always re-fetches route
-        _polylineService.clearCache();
-        polylines.clear();
-        polylines.refresh();
         _updateMarkers();
 
-        // Perform reverse lookup (Google + OpenStreetMap fallback)
         final address = await _polylineService.reverseGeocode(
           position.latitude,
           position.longitude,
@@ -379,22 +387,18 @@ class HomeController extends GetxController {
 
         if (address != null && address.trim().isNotEmpty) {
           _setPickupAddressDetails(address);
-        } else {
-          await refreshAddressFor(latlng);
-          if (pickupAddress.value.isEmpty) {
-            final dynamicFallback =
-                currentAddress.value.isNotEmpty &&
-                        !currentAddress.value.startsWith('Enable GOOGLE_')
-                    ? currentAddress.value
-                    : 'Current Location';
-            _setPickupAddressDetails(dynamicFallback);
-          }
+        } else if (pickupAddress.value.isEmpty) {
+          final dynamicFallback =
+              currentAddress.value.isNotEmpty &&
+                      !currentAddress.value.startsWith('Enable GOOGLE_')
+                  ? currentAddress.value
+                  : 'Current Location';
+          _setPickupAddressDetails(dynamicFallback);
         }
 
-        pickupCoordinates.value = _formatCoordinates(latlng);
-
-        // Force-refresh polyline with new pickup position
-        await updateRoutePolyline(forceRefresh: true);
+        if (droplocation.value != null) {
+          await updateRoutePolyline();
+        }
 
         if (_mapController != null) {
           await _mapController!.animateCamera(
@@ -411,7 +415,7 @@ class HomeController extends GetxController {
 
   Future<void> _loadHomePage() async {
     await detectAndSetCurrentLocation();
-    await Future.wait([getVehicleType(), refreshAddressFor(pickupPoint.value)]);
+    await getVehicleType();
   }
 
   Future<void> _checkActiveRide() async {

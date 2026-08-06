@@ -28,49 +28,6 @@ class HomeScreen extends GetView<HomeController> {
             child: Stack(
               children: [
                 const HomeMapArea(),
-                Obx(() {
-                  final activeRide = controller.activeRide.value;
-                  if (activeRide == null) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Positioned(
-                    top: 16,
-                    left: 20,
-                    right: 20,
-                    child: _ActiveRideFloatingCard(
-                      booking: activeRide,
-                      onTap: () {
-                        final status = activeRide.status?.trim().toLowerCase();
-                        final bookingArgs = <String, dynamic>{
-                          'booking_no': activeRide.bookingNo,
-                          'booking_data': activeRide,
-                        };
-                        if (status == 'pending') {
-                          Get.toNamed(
-                            RouteNames.findingDriver,
-                            arguments: <String, dynamic>{
-                              'booking_no': activeRide.bookingNo,
-                              'booking_data': activeRide,
-                              'vehicle_type': activeRide.categoryName,
-                            },
-                          );
-                        } else if (status == 'accepted' ||
-                            status == 'started') {
-                          Get.toNamed(
-                            RouteNames.activeRide,
-                            arguments: bookingArgs,
-                          );
-                        } else if (status == 'completed') {
-                          Get.toNamed(
-                            RouteNames.rideSummary,
-                            arguments: bookingArgs,
-                          );
-                        }
-                      },
-                    ),
-                  );
-                }),
                 DraggableScrollableSheet(
                   initialChildSize: compact ? 0.54 : 0.58,
                   minChildSize: compact ? 0.40 : 0.45,
@@ -114,7 +71,51 @@ class HomeScreen extends GetView<HomeController> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
+                              Obx(() {
+                                final activeRide = controller.activeRide.value;
+                                if (activeRide == null) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: _ActiveRideFloatingCard(
+                                    booking: activeRide,
+                                    onTap: () {
+                                      final status =
+                                          activeRide.status?.trim().toLowerCase();
+                                      final bookingArgs = <String, dynamic>{
+                                        'booking_no': activeRide.bookingNo,
+                                        'booking_data': activeRide,
+                                      };
+                                      if (status == 'pending') {
+                                        Get.toNamed(
+                                          RouteNames.findingDriver,
+                                          arguments: <String, dynamic>{
+                                            'booking_no': activeRide.bookingNo,
+                                            'booking_data': activeRide,
+                                            'vehicle_type':
+                                                activeRide.categoryName,
+                                          },
+                                        );
+                                      } else if (status == 'accepted' ||
+                                          status == 'arrived' ||
+                                          status == 'started') {
+                                        Get.toNamed(
+                                          RouteNames.activeRide,
+                                          arguments: bookingArgs,
+                                        );
+                                      } else if (status == 'completed') {
+                                        Get.toNamed(
+                                          RouteNames.rideSummary,
+                                          arguments: bookingArgs,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                );
+                              }),
                               HomeSearchBar(
                                 onTap: () =>
                                     Get.toNamed(RouteNames.locationSearch),

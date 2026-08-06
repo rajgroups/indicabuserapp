@@ -17,7 +17,13 @@ class BookingController extends GetxController {
   BookingController() : _repository = BookingRepository(ApiClient());
 
   final BookingRepository _repository;
-  HomeController get _homeController => Get.find<HomeController>();
+
+  HomeController get _homeController {
+    if (Get.isRegistered<HomeController>()) {
+      return Get.find<HomeController>();
+    }
+    return Get.put<HomeController>(HomeController(), permanent: true);
+  }
 
   final RxBool isSubmitting = false.obs;
   final RxString selectedMode = ''.obs;
@@ -27,6 +33,19 @@ class BookingController extends GetxController {
     VehicleOption option,
     VehicleSubCategory subCategory,
   ) async {
+    final activeRide = _homeController.activeRide.value;
+    if (activeRide != null) {
+      Get.snackbar(
+        'Active Ride Exists',
+        'You already have an active ride in progress. Please complete or cancel your existing ride before booking a new one.',
+        backgroundColor: AppColors.surface,
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.TOP,
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
+
     await Get.dialog(
       Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 20),

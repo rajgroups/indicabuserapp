@@ -14,6 +14,9 @@ import 'package:indicab/core/network/network_exceptions.dart';
 import 'package:indicab/core/repository/BookingRepository.dart';
 import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/core/routes/names.dart';
+import 'package:indicab/core/constants/Keys.dart';
+import 'package:indicab/core/services/StorageService.dart';
+import 'package:indicab/modules/home/HomeController.dart';
 import 'package:indicab/modules/ride/ui/sos_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -38,6 +41,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
   BookingDataModel? _bookingData;
   bool _isLoading = false;
+  bool _isCancelling = false;
   LatLng? _driverPosition;
   bool _userMovedMap = false;
   bool _arrivedSheetShown = false;
@@ -245,6 +249,35 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
     final newBooking = BookingDataModel.fromJson(booking);
     final newStatus = newBooking.status?.trim().toLowerCase();
+
+    // Handle cancellation — navigate back to home with a message
+    if (newStatus == 'cancelled') {
+      if (!mounted) return;
+      Get.snackbar(
+        'Ride Cancelled',
+        'Your ride has been cancelled.',
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
+        duration: const Duration(seconds: 3),
+      );
+      Get.offAllNamed(RouteNames.home);
+      return;
+    }
+
+    // Handle ride completion — navigate to the ride summary screen
+    if (newStatus == 'completed') {
+      if (Get.currentRoute != RouteNames.rideSummary) {
+        Get.offAllNamed(
+          RouteNames.rideSummary,
+          arguments: {
+            'booking_no': newBooking.bookingNo ?? widget.bookingNo,
+            'booking_data': newBooking,
+          },
+        );
+      }
+      return;
+    }
 
     setState(() => _bookingData = newBooking);
 
@@ -601,6 +634,73 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         );
       },
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cancel Ride API Trigger
+  // ---------------------------------------------------------------------------
+
+  Future<void> _handleCancelRide() async {
+    final currentStatus = _bookingData?.status?.trim().toLowerCase();
+    if (currentStatus == 'started') {
+      Get.snackbar(
+        'Cannot Cancel Ride',
+        'Trip is already in progress and cannot be cancelled once picked up.',
+        backgroundColor: AppColors.surface,
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.TOP,
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
+
+    if (_isCancelling) return;
+
+    final bookingNo = widget.bookingNo ?? _bookingData?.bookingNo;
+    if (bookingNo == null || bookingNo.isEmpty) {
+      Get.offAllNamed(RouteNames.home);
+      return;
+    }
+
+    setState(() {
+      _isCancelling = true;
+    });
+
+    try {
+      final repository = BookingRepository(ApiClient());
+      await repository.cancelBooking(bookingNo);
+
+      final storage = StorageService();
+      storage.delete(StorageKeys.pendingRideBookingNo);
+      storage.delete(StorageKeys.pendingRideVehicleType);
+
+      if (Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().activeRide.value = null;
+      }
+
+      if (mounted) {
+        Get.snackbar(
+          'Ride Cancelled',
+          'Your ride has been cancelled successfully.',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+          duration: const Duration(seconds: 3),
+        );
+        Get.offAllNamed(RouteNames.home);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCancelling = false;
+        });
+        Get.snackbar(
+          'Error',
+          'Failed to cancel ride: ${e.toString().replaceAll('Exception: ', '')}',
+          backgroundColor: AppColors.surface,
+        );
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1174,24 +1274,48 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                               const SizedBox(width: 16),
                               Expanded(
                                 child: ElevatedButton.icon(
-                                  onPressed: () => Get.offNamed(
-                                    RouteNames.rideSummary,
-                                    arguments: {
-                                      'booking_no': widget.bookingNo ??
-                                          _bookingData?.bookingNo,
-                                      'booking_data': _bookingData,
-                                    },
-                                  ),
-                                  icon: const Icon(Icons.flag_rounded),
-                                  label: const Text(
-                                    'End Ride',
+                                  onPressed: _isCancelling
+                                      ? null
+                                      : _handleCancelRide,
+                                  icon: _isCancelling
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.red,
+                                          ),
+                                        )
+                                      : Icon(
+                                          isStarted
+                                              ? Icons.block_rounded
+                                              : Icons.cancel_rounded,
+                                          color: isStarted
+                                              ? AppColors.textMuted
+                                              : Colors.red,
+                                        ),
+                                  label: Text(
+                                    _isCancelling
+                                        ? 'Cancelling...'
+                                        : isStarted
+                                            ? "Can't Cancel"
+                                            : 'Cancel Ride',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
+                                      color: isStarted
+                                          ? AppColors.textMuted
+                                          : Colors.red,
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: AppColors.textPrimary,
+                                    backgroundColor: isStarted
+                                        ? AppColors.inputFill
+                                        : Colors.red.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                    foregroundColor: isStarted
+                                        ? AppColors.textMuted
+                                        : Colors.red,
                                     elevation: 0,
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 16,

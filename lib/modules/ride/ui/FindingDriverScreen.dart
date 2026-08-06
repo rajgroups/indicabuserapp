@@ -196,6 +196,17 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     }
   }
 
+  Future<void> _handleGoBack() async {
+    if (!mounted) {
+      return;
+    }
+
+    await Get.offAllNamed(
+      RouteNames.home,
+      arguments: <String, dynamic>{'from_active_ride': true},
+    );
+  }
+
   Future<void> _handleCancel() async {
     if (_isCancelling) {
       return;
@@ -484,7 +495,14 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _handleGoBack();
+        }
+      },
+      child: Scaffold(
       backgroundColor: AppColors.authBackground,
       body: Stack(
         children: [
@@ -517,7 +535,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
                   Row(
                     children: [
                       InkWell(
-                        onTap: _isCancelling ? null : _handleCancel,
+                        onTap: _handleGoBack,
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
                           width: 52,
@@ -605,6 +623,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
           ),
         ],
       ),
+    ),
     );
   }
 }
