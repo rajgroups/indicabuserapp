@@ -12,11 +12,13 @@ class LocationSearchScreen extends GetView<HomeController> {
   @override
   Widget build(BuildContext context) {
     final bool hasValidPlacesKey = AppEnv.hasGooglePlacesApiKey;
+    final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
       backgroundColor: AppColors.authBackground,
       body: Stack(
         children: [
+          // Fullscreen Google Map Background
           Obx(
             () => MapViewWidget(
               pickupLocation:
@@ -28,7 +30,7 @@ class LocationSearchScreen extends GetView<HomeController> {
             ),
           ),
 
-          // Top Route Selection Card
+          // Top Rapido-Style Route Selection Card
           Positioned(
             top: 0,
             left: 0,
@@ -37,46 +39,44 @@ class LocationSearchScreen extends GetView<HomeController> {
               decoration: const BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(32),
+                  bottom: Radius.circular(28),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0x14000000),
-                    blurRadius: 28,
-                    offset: Offset(0, 6),
+                    color: Color(0x1F000000),
+                    blurRadius: 24,
+                    offset: Offset(0, 8),
                   ),
                 ],
               ),
-              padding: EdgeInsets.fromLTRB(
-                20,
-                MediaQuery.of(context).padding.top + 10,
-                20,
-                24,
-              ),
+              padding: EdgeInsets.fromLTRB(16, topPadding + 8, 16, 20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // App Bar Row
                   Row(
                     children: [
                       InkWell(
                         onTap: Get.back,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(14),
                         child: Container(
-                          width: 44,
-                          height: 44,
+                          width: 40,
+                          height: 40,
                           decoration: BoxDecoration(
-                            color: AppColors.inputFill,
-                            borderRadius: BorderRadius.circular(16),
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(
                             Icons.arrow_back_rounded,
                             color: AppColors.textPrimary,
+                            size: 22,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
                       const Text(
-                        'Select Route',
+                        'Select Location',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
@@ -85,12 +85,12 @@ class LocationSearchScreen extends GetView<HomeController> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
                   if (!hasValidPlacesKey)
                     Container(
                       width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 16),
+                      margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFF1F2),
@@ -98,216 +98,335 @@ class LocationSearchScreen extends GetView<HomeController> {
                         border: Border.all(color: const Color(0xFFFDA4AF)),
                       ),
                       child: const Text(
-                        'Invalid Google Places API key. Update GOOGLE_PLACES_API_KEY in .env to enable location search.',
+                        'Invalid Google Places API key. Update GOOGLE_PLACES_API_KEY in .env to enable search.',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF9F1239),
                         ),
                       ),
                     ),
 
-                  // Origin Input with GPS Button
-                  GooglePlacesInput(
-                    hintText: "Pickup Location",
-                    controller: controller.originController,
-                    prefixIcon: Icons.my_location_rounded,
-                    suffixIcon: IconButton(
-                      icon: const Icon(
-                        Icons.gps_fixed_rounded,
-                        color: AppColors.primaryDark,
-                      ),
-                      tooltip: 'Use current GPS location',
-                      onPressed: () async {
-                        Get.snackbar(
-                          'GPS Location',
-                          'Detecting current location address...',
-                          backgroundColor: AppColors.surface,
-                          duration: const Duration(seconds: 2),
-                        );
-                        await controller.detectAndSetCurrentLocation();
-                        if (controller.pickupAddress.value.isNotEmpty) {
-                          Get.snackbar(
-                            'Pickup Address Set',
-                            controller.pickupAddress.value,
-                            backgroundColor: AppColors.surface,
-                            colorText: AppColors.textPrimary,
-                            icon: const Icon(
-                              Icons.check_circle_rounded,
-                              color: Colors.green,
-                            ),
-                            duration: const Duration(seconds: 3),
-                          );
-                        }
-                      },
+                  // Unified Rapido Two-Dot Route Card
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
                     ),
-                    onPlaceSelected: (place) {
-                      controller.setPickup(place);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Destination Input + Disabled Plus Button for Multiple Stops
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GooglePlacesInput(
-                          hintText: "Where to go?",
-                          controller: controller.destController,
-                          prefixIcon: Icons.location_on_rounded,
-                          onPlaceSelected: (place) {
-                            controller.setDrop(place);
-                          },
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Left Visual Route Connector (Green Dot -> Line -> Red Pin)
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 14,
+                              height: 14,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF2E7D32),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 5,
+                                  height: 5,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 2,
+                              height: 32,
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF9CA3AF),
+                                borderRadius: BorderRadius.circular(1),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.location_on_rounded,
+                              color: Color(0xFFE53935),
+                              size: 18,
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      InkWell(
-                        onTap: () {
-                          Get.snackbar(
-                            'Multiple Stops',
-                            'Multiple drop-off stops feature coming soon!',
+                        const SizedBox(width: 10),
+
+                        // Middle Search Inputs (Pickup & Drop)
+                        Expanded(
+                          child: Column(
+                            children: [
+                              // Pickup Input
+                              GooglePlacesInput(
+                                hintText: "Pickup Location",
+                                controller: controller.originController,
+                                prefixIcon: Icons.my_location_rounded,
+                                suffixIcon: IconButton(
+                                  icon: const Icon(
+                                    Icons.gps_fixed_rounded,
+                                    color: AppColors.primaryDark,
+                                    size: 20,
+                                  ),
+                                  tooltip: 'Current Location',
+                                  onPressed: () async {
+                                    await controller
+                                        .detectAndSetCurrentLocation(force: true);
+                                  },
+                                ),
+                                onPlaceSelected: (place) {
+                                  controller.setPickup(place);
+                                },
+                              ),
+
+                              const Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
+
+                              // Destination Input
+                              GooglePlacesInput(
+                                hintText: "Where are you going?",
+                                controller: controller.destController,
+                                prefixIcon: Icons.location_on_rounded,
+                                onPlaceSelected: (place) {
+                                  controller.setDrop(place);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Right Column: Add Stop (+) and Swap (⇅) Buttons
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Material(
+                              color: const Color(0xFFECEFF1),
+                              shape: const CircleBorder(),
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                onTap: () {
+                                  Get.snackbar(
+                                    'Multiple Stops',
+                                    'Multiple drop-off stops feature coming soon!',
+                                    backgroundColor: AppColors.surface,
+                                    colorText: AppColors.textPrimary,
+                                    icon: const Icon(
+                                      Icons.info_outline_rounded,
+                                      color: AppColors.primaryDark,
+                                    ),
+                                  );
+                                },
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.add_rounded,
+                                    color: AppColors.textPrimary,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Material(
+                              color: const Color(0xFFECEFF1),
+                              shape: const CircleBorder(),
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                onTap: controller.swapLocations,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.swap_vert_rounded,
+                                    color: AppColors.textPrimary,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Quick Action Chips (Rapido Style)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        _QuickChip(
+                          icon: Icons.map_rounded,
+                          label: 'Set on map',
+                          color: AppColors.primaryDark,
+                          onTap: Get.back,
+                        ),
+                        const SizedBox(width: 8),
+                        _QuickChip(
+                          icon: Icons.home_rounded,
+                          label: 'Home',
+                          color: const Color(0xFF2196F3),
+                          onTap: () => Get.snackbar(
+                            'Home',
+                            'Select home address',
                             backgroundColor: AppColors.surface,
-                            colorText: AppColors.textPrimary,
-                            icon: const Icon(
-                              Icons.info_outline_rounded,
-                              color: AppColors.primaryDark,
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: AppColors.inputFill,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.borderSoft),
-                          ),
-                          child: const Icon(
-                            Icons.add_rounded,
-                            color: AppColors.textMuted,
-                            size: 24,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        _QuickChip(
+                          icon: Icons.work_rounded,
+                          label: 'Work',
+                          color: const Color(0xFF607D8B),
+                          onTap: () => Get.snackbar(
+                            'Work',
+                            'Select work address',
+                            backgroundColor: AppColors.surface,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _QuickChip(
+                          icon: Icons.history_rounded,
+                          label: 'Recent',
+                          color: const Color(0xFF9C27B0),
+                          onTap: () => Get.snackbar(
+                            'Recent',
+                            'Viewing recent places',
+                            backgroundColor: AppColors.surface,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  Obx(() {
-                    final hasPickup =
-                        controller.pickupAddress.value.isNotEmpty ||
-                        controller.pickupCoordinates.value.isNotEmpty;
-                    final hasDrop =
-                        controller.dropAddress.value.isNotEmpty ||
-                        controller.dropCoordinates.value.isNotEmpty;
-
-                    if (!hasPickup && !hasDrop) {
-                      return const SizedBox.shrink();
-                    }
-
-                    final pPlace = controller.pickupPlaceName.value;
-                    final pAddr = controller.pickupAddress.value;
-                    final pTitle = pPlace.isNotEmpty
-                        ? pPlace
-                        : (pAddr.isNotEmpty ? pAddr : 'Current Location');
-                    final pSubtitle = pAddr.isNotEmpty && pAddr != pTitle
-                        ? pAddr
-                        : controller.pickupCoordinates.value;
-
-                    final dPlace = controller.dropPlaceName.value;
-                    final dAddr = controller.dropAddress.value;
-                    final dTitle = dPlace.isNotEmpty
-                        ? dPlace
-                        : (dAddr.isNotEmpty ? dAddr : 'Drop Location');
-                    final dSubtitle = dAddr.isNotEmpty && dAddr != dTitle
-                        ? dAddr
-                        : controller.dropCoordinates.value;
-
-                    return Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(top: 14),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.inputFill,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.borderSoft),
-                      ),
-                      child: Column(
-                        children: [
-                          if (hasPickup)
-                            _LocationSummaryTile(
-                              icon: Icons.my_location_rounded,
-                              label: 'Pickup Selected',
-                              title: pTitle,
-                              subtitle: pSubtitle,
-                            ),
-                          if (hasPickup && hasDrop)
-                            const SizedBox(height: 12),
-                          if (hasDrop)
-                            _LocationSummaryTile(
-                              icon: Icons.location_on_rounded,
-                              label: 'Drop Selected',
-                              title: dTitle,
-                              subtitle: dSubtitle,
-                            ),
-                        ],
-                      ),
-                    );
-                  }),
                 ],
               ),
             ),
           ),
 
-          // Floating External Navigation FAB (Save Google API Cost)
+          // Floating GPS & Map Control Buttons (Aligned dynamically above bottom card)
           Obx(() {
-            if (controller.droplocation.value == null) {
-              return const SizedBox.shrink();
-            }
+            final hasDrop = controller.droplocation.value != null;
+            final bottomPadding = hasDrop ? 150.0 : 90.0;
 
             return Positioned(
-              bottom: 96,
-              right: 20,
-              child: FloatingActionButton.extended(
-                onPressed: controller.launchExternalNavigation,
-                backgroundColor: AppColors.surface,
-                elevation: 8,
-                icon: const Icon(
-                  Icons.navigation_rounded,
-                  color: AppColors.primaryDark,
-                ),
-                label: const Text(
-                  'Open Navigation',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
+              right: 16,
+              bottom: bottomPadding,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Material(
+                    color: AppColors.surface,
+                    elevation: 4,
+                    shadowColor: const Color(0x33000000),
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: controller.moveToCurrentLocation,
+                      child: const SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Center(
+                          child: Icon(
+                            Icons.my_location_rounded,
+                            color: AppColors.primaryDark,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             );
           }),
 
-          // Confirm Button at bottom
+          // Bottom Route Summary & Confirm Button
           Positioned(
-            bottom: 24,
-            left: 20,
-            right: 20,
-            child: ElevatedButton(
-              onPressed: () => Get.back(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.textPrimary,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-              child: const Text(
-                'Confirm Destination',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-              ),
-            ),
+            bottom: 20,
+            left: 16,
+            right: 16,
+            child: Obx(() {
+              final hasDrop = controller.droplocation.value != null;
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasDrop) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface.withValues(alpha: 0.95),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x1A000000),
+                            blurRadius: 16,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: Color(0xFF2E7D32),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              controller.dropAddress.value.isNotEmpty
+                                  ? controller.dropAddress.value
+                                  : 'Destination Selected',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Get.back(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.textPrimary,
+                        elevation: 4,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: Text(
+                        hasDrop ? 'Confirm Destination' : 'Done',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
           ),
         ],
       ),
@@ -315,74 +434,47 @@ class LocationSearchScreen extends GetView<HomeController> {
   }
 }
 
-class _LocationSummaryTile extends StatelessWidget {
-  const _LocationSummaryTile({
+class _QuickChip extends StatelessWidget {
+  const _QuickChip({
     required this.icon,
     required this.label,
-    required this.title,
-    required this.subtitle,
+    required this.color,
+    required this.onTap,
   });
 
   final IconData icon;
   final String label;
-  final String title;
-  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: AppColors.primaryDark, size: 22),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Material(
+      color: const Color(0xFFF3F4F6),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
                   color: AppColors.textPrimary,
                 ),
               ),
-              if (subtitle.isNotEmpty && subtitle != title) ...[
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    height: 1.35,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
+

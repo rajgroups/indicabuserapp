@@ -183,6 +183,34 @@ class HomeController extends GetxController {
     await getVehicleType();
   }
 
+  void swapLocations() {
+    final tempPickup = pickuplocation.value;
+    final tempPickupPlaceName = pickupPlaceName.value;
+    final tempPickupAddress = pickupAddress.value;
+    final tempPickupCoordinates = pickupCoordinates.value;
+    final tempOriginText = originController.text;
+
+    pickuplocation.value = droplocation.value;
+    if (droplocation.value != null) {
+      pickupPoint.value = droplocation.value!;
+    }
+    pickupPlaceName.value = dropPlaceName.value;
+    pickupAddress.value = dropAddress.value;
+    pickupCoordinates.value = dropCoordinates.value;
+    originController.text = destController.text;
+
+    droplocation.value = tempPickup;
+    dropPlaceName.value = tempPickupPlaceName;
+    dropAddress.value = tempPickupAddress;
+    dropCoordinates.value = tempPickupCoordinates;
+    destController.text = tempOriginText;
+
+    _updateMarkers();
+    updateRoutePolyline();
+    _focusMapOnSelectedLocations();
+    getVehicleType();
+  }
+
   Future<void> updateRoutePolyline({bool forceRefresh = false}) async {
     final pickup = pickuplocation.value ?? pickupPoint.value;
     final drop = droplocation.value;
@@ -411,6 +439,21 @@ class HomeController extends GetxController {
     } catch (e) {
       debugPrint('HomeController.detectAndSetCurrentLocation error: $e');
     }
+  }
+
+  Future<void> moveToCurrentLocation() async {
+    if (_mapController != null) {
+      try {
+        await _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(target: pickupPoint.value, zoom: 15.5),
+          ),
+        );
+      } catch (e) {
+        debugPrint('Error animating camera to pickup point: $e');
+      }
+    }
+    await detectAndSetCurrentLocation(force: true);
   }
 
   Future<void> _loadHomePage() async {

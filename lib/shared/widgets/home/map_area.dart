@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/config/Config.dart';
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/routes/names.dart';
@@ -59,109 +58,154 @@ class HomeMapArea extends GetView<HomeController> {
             ),
           ),
           Positioned(
+            right: 20,
+            bottom: 94,
+            child: Material(
+              color: AppColors.surface,
+              elevation: 4,
+              shadowColor: const Color(0x33000000),
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: controller.moveToCurrentLocation,
+                child: const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(
+                    child: Icon(
+                      Icons.my_location_rounded,
+                      color: AppColors.textPrimary,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
             left: 20,
             right: 20,
             bottom: 18,
             child: Obx(
-              () => Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surface.withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x16000000),
-                      blurRadius: 18,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(14),
+              () => GestureDetector(
+                onTap: () => Get.toNamed(RouteNames.locationSearch),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x16000000),
+                        blurRadius: 18,
+                        offset: Offset(0, 8),
                       ),
-                      child: const Icon(
-                        Icons.location_on_rounded,
-                        color: AppColors.primaryDark,
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.location_on_rounded,
+                          color: AppColors.primaryDark,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            controller.isAddressLoading.value
-                                ? 'Finding address...'
-                                : 'Drop location',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              controller.isAddressLoading.value
+                                  ? 'Finding address...'
+                                  : 'Drop location',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              controller.dropAddress.value.isNotEmpty
+                                  ? controller.dropAddress.value
+                                  : 'Tap to select destination',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (controller.droplocation.value != null) ...[
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: controller.launchExternalNavigation,
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.navigation_rounded,
+                                  size: 16,
+                                  color: AppColors.textPrimary,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Maps',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            controller.dropAddress.value.isNotEmpty
-                                ? controller.dropAddress.value
-                                : 'Tap search bar to select destination',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (controller.droplocation.value != null) ...[
-                      const SizedBox(width: 8),
-                      InkWell(
-                        onTap: controller.launchExternalNavigation,
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
+                        ),
+                      ] else ...[
+                        const SizedBox(width: 8),
+                        Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.primary,
+                            color: AppColors.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.navigation_rounded,
-                                size: 16,
-                                color: AppColors.textPrimary,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Maps',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
+                          child: const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                            color: AppColors.primaryDark,
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

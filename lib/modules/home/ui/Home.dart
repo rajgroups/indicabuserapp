@@ -10,8 +10,22 @@ import 'package:indicab/modules/home/HomeController.dart';
 import 'package:indicab/modules/home/models/VehicleModels.dart';
 import 'package:indicab/core/models/booking_response.dart';
 
-class HomeScreen extends GetView<HomeController> {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final HomeController controller = Get.find<HomeController>();
+  final ScrollController _vehicleListScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _vehicleListScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +170,7 @@ class HomeScreen extends GetView<HomeController> {
                                 return SizedBox(
                                   height: vehicleHeight,
                                   child: ListView.separated(
+                                    controller: _vehicleListScrollController,
                                     scrollDirection: Axis.horizontal,
                                     physics: const BouncingScrollPhysics(),
                                     itemCount: controller.vehicleTypes.length,
@@ -222,56 +237,91 @@ class HomeScreen extends GetView<HomeController> {
                                 subtitle:
                                     'Shortcuts people use most while booking',
                               ),
-                              const SizedBox(height: 14),
-                              width < 420
-                                  ? Column(
-                                      children: [
-                                        HomeQuickActionCard(
-                                          icon: Icons.history_rounded,
-                                          title: 'Recent',
-                                          subtitle: 'Past trips',
-                                          onTap: () => Get.toNamed(
-                                            RouteNames.rideHistory,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        HomeQuickActionCard(
-                                          icon: Icons.local_offer_rounded,
-                                          title: 'Offers',
-                                          subtitle: 'Save more',
-                                          onTap: () => _showBookingSnack(
-                                            context,
-                                            'View offers',
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Row(
-                                      children: [
-                                        Expanded(
-                                          child: HomeQuickActionCard(
-                                            icon: Icons.history_rounded,
-                                            title: 'Recent',
-                                            subtitle: 'Past trips',
-                                            onTap: () => Get.toNamed(
-                                              RouteNames.rideHistory,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: HomeQuickActionCard(
-                                            icon: Icons.local_offer_rounded,
-                                            title: 'Offers',
-                                            subtitle: 'Save more',
-                                            onTap: () => _showBookingSnack(
-                                              context,
-                                              'View offers',
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                              const SizedBox(height: 16),
+                              GridView.count(
+                                crossAxisCount: 4,
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 16,
+                                childAspectRatio: 0.85,
+                                children: [
+                                  _EssentialGridItem(
+                                    icon: Icons.history_rounded,
+                                    label: 'Recent',
+                                    color: const Color(0xFF6C63FF),
+                                    onTap: () =>
+                                        Get.toNamed(RouteNames.rideHistory),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.local_offer_rounded,
+                                    label: 'Offers',
+                                    color: const Color(0xFFFF6B35),
+                                    onTap: () => Get.snackbar(
+                                      'Offers',
+                                      'Exciting offers coming soon!',
+                                      backgroundColor: AppColors.surface,
                                     ),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.schedule_rounded,
+                                    label: 'Schedule',
+                                    color: const Color(0xFF00B4D8),
+                                    onTap: () => Get.snackbar(
+                                      'Schedule',
+                                      'Schedule a ride from the booking page.',
+                                      backgroundColor: AppColors.surface,
+                                    ),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.support_agent_rounded,
+                                    label: 'Support',
+                                    color: const Color(0xFF2ECC71),
+                                    onTap: () => Get.snackbar(
+                                      'Support',
+                                      'Customer support coming soon!',
+                                      backgroundColor: AppColors.surface,
+                                    ),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.card_giftcard_rounded,
+                                    label: 'Rewards',
+                                    color: const Color(0xFFFFCC00),
+                                    onTap: () => Get.snackbar(
+                                      'Rewards',
+                                      'Loyalty rewards coming soon!',
+                                      backgroundColor: AppColors.surface,
+                                    ),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.location_on_rounded,
+                                    label: 'Saved',
+                                    color: const Color(0xFFE91E63),
+                                    onTap: () => Get.snackbar(
+                                      'Saved Places',
+                                      'Manage your saved places.',
+                                      backgroundColor: AppColors.surface,
+                                    ),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.receipt_long_rounded,
+                                    label: 'Invoices',
+                                    color: const Color(0xFF607D8B),
+                                    onTap: () =>
+                                        Get.toNamed(RouteNames.rideHistory),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.share_rounded,
+                                    label: 'Refer',
+                                    color: const Color(0xFF9C27B0),
+                                    onTap: () => Get.snackbar(
+                                      'Refer & Earn',
+                                      'Referral program coming soon!',
+                                      backgroundColor: AppColors.surface,
+                                    ),
+                                  ),
+                                ],
+                              ),
                               const SizedBox(height: 20),
                               const HomePromoBanner(),
                               const SizedBox(height: 28),
@@ -280,31 +330,54 @@ class HomeScreen extends GetView<HomeController> {
                                 subtitle:
                                     'Quickly book your most common routes',
                               ),
-                              const SizedBox(height: 14),
-                              HomeSavedPlaceTile(
-                                icon: Icons.home_rounded,
-                                title: 'Home',
-                                subtitle: 'Koramangala, Bangalore',
-                                onTap: () =>
-                                    _showBookingSnack(context, 'Home selected'),
-                              ),
-                              const SizedBox(height: 10),
-                              HomeSavedPlaceTile(
-                                icon: Icons.work_rounded,
-                                title: 'Work',
-                                subtitle: 'Whitefield, Bangalore',
-                                onTap: () =>
-                                    _showBookingSnack(context, 'Work selected'),
-                              ),
-                              const SizedBox(height: 10),
-                              HomeSavedPlaceTile(
-                                icon: Icons.train_rounded,
-                                title: 'Airport',
-                                subtitle: 'Kempegowda International Airport',
-                                onTap: () => _showBookingSnack(
-                                  context,
-                                  'Airport selected',
-                                ),
+                              const SizedBox(height: 16),
+                              GridView.count(
+                                crossAxisCount: 4,
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 16,
+                                childAspectRatio: 0.85,
+                                children: [
+                                  _EssentialGridItem(
+                                    icon: Icons.home_rounded,
+                                    label: 'Home',
+                                    color: const Color(0xFF2196F3),
+                                    onTap: () => Get.snackbar(
+                                      'Home',
+                                      'Set your home address to quick book.',
+                                      backgroundColor: AppColors.surface,
+                                    ),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.work_rounded,
+                                    label: 'Work',
+                                    color: const Color(0xFF607D8B),
+                                    onTap: () => Get.snackbar(
+                                      'Work',
+                                      'Set your work address to quick book.',
+                                      backgroundColor: AppColors.surface,
+                                    ),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.flight_rounded,
+                                    label: 'Airport',
+                                    color: const Color(0xFF00BCD4),
+                                    onTap: () => Get.snackbar(
+                                      'Airport',
+                                      'Book a ride to the airport.',
+                                      backgroundColor: AppColors.surface,
+                                    ),
+                                  ),
+                                  _EssentialGridItem(
+                                    icon: Icons.add_location_alt_rounded,
+                                    label: 'Add New',
+                                    color: const Color(0xFF4CAF50),
+                                    onTap: () => Get.toNamed(
+                                      RouteNames.locationSearch,
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 28),
                               SizedBox(
@@ -356,31 +429,21 @@ class HomeScreen extends GetView<HomeController> {
     );
   }
 
-  void _showBookingSnack(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-      );
-  }
-
   Future<void> _openVehicleSheet(
     BuildContext context,
     VehicleOption option,
   ) async {
-    final parentContext = context;
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (sheetContext) {
         return DraggableScrollableSheet(
-          initialChildSize: 0.5, // Now starting at 0.5
-          minChildSize: 0.3, // Can shrink down to 0.3
-          maxChildSize: 0.9, // Can expand up to 0.9
-          expand: false, // Often helpful in BottomSheets
-          builder: (context, scrollController) {
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (sheetContext2, scrollController) {
             final hasDrop = controller.droplocation.value != null;
             final distKm = controller.calculateDistanceKm();
 
@@ -390,24 +453,25 @@ class HomeScreen extends GetView<HomeController> {
               hasDropLocation: hasDrop,
               distanceKm: distKm,
               onSelect: (subCategory) {
-                Navigator.of(context).pop();
+                // Dismiss the bottom sheet first
+                Navigator.of(sheetContext).pop();
+                // Show the booking mode dialog after the sheet is fully dismissed
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!parentContext.mounted) {
-                    return;
-                  }
+                  final ctx = Get.context;
+                  if (ctx == null) return;
                   final bookingController =
                       Get.isRegistered<BookingController>()
                       ? Get.find<BookingController>()
                       : Get.put<BookingController>(BookingController());
                   bookingController.showBookingModeDialog(
-                    parentContext,
+                    ctx,
                     option,
                     subCategory,
                   );
                 });
               },
               onMapTap: (subCategory) {
-                Navigator.of(context).pop();
+                Navigator.of(sheetContext).pop();
                 Get.to(
                   () => NearbyVehiclesScreen(
                     vehicleCategory: subCategory.name,
@@ -419,6 +483,53 @@ class HomeScreen extends GetView<HomeController> {
           },
         );
       },
+    );
+  }
+}
+
+class _EssentialGridItem extends StatelessWidget {
+  const _EssentialGridItem({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(icon, color: color, size: 26),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
