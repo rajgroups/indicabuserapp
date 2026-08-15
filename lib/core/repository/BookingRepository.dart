@@ -81,4 +81,29 @@ class BookingRepository {
 
     throw Exception('Unexpected booking response format.');
   }
+
+  Future<Map<String, dynamic>> submitReview(
+    String bookingNo, {
+    required int rating,
+    String? comment,
+    List<String>? feedbackTags,
+  }) async {
+    final response = await _apiClient.post(
+      ApiEndpoints.bookingReview(bookingNo),
+      data: {
+        'rating': rating,
+        if (comment != null && comment.trim().isNotEmpty)
+          'comment': comment.trim(),
+        if (feedbackTags != null && feedbackTags.isNotEmpty)
+          'feedback_tags': feedbackTags,
+      },
+    );
+
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) {
+      return payload;
+    }
+
+    throw Exception('Unexpected review response format.');
+  }
 }

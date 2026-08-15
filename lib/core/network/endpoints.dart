@@ -14,5 +14,6 @@ class ApiEndpoints {
   static const supportTickets = '/support/tickets';
   static String bookingDetails(String bookingNo) => '/bookings/$bookingNo';
   static String bookingSos(String bookingNo) => '/bookings/$bookingNo/sos';
+  static String bookingReview(String bookingNo) => '/bookings/$bookingNo/review';
   static const checkUpdate = '/check-update';
 }
