@@ -43,8 +43,8 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const HomeMapArea(),
                 DraggableScrollableSheet(
-                  initialChildSize: compact ? 0.54 : 0.58,
-                  minChildSize: compact ? 0.40 : 0.45,
+                  initialChildSize: compact ? 0.48 : 0.52,
+                  minChildSize: compact ? 0.14 : 0.15,
                   maxChildSize: 0.92,
                   builder: (context, scrollController) {
                     return Container(
@@ -131,8 +131,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
                               }),
                               HomeSearchBar(
-                                onTap: () =>
-                                    Get.toNamed(RouteNames.locationSearch),
+                                onTap: () => Get.toNamed(
+                                  RouteNames.locationSearch,
+                                  arguments: <String, dynamic>{
+                                    'target': controller.nextSelectionTarget ==
+                                            LocationSelectionTarget.drop
+                                        ? 'drop'
+                                        : 'pickup',
+                                  },
+                                ),
                               ),
                               const SizedBox(height: 6),
                               const HomeSectionTitle(
@@ -190,12 +197,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                         option: option,
                                         isSelected: isSelected,
                                         onTap: () {
-                                          controller.toggleVehicleSelection(
+                                          controller.selectVehicle(
                                             option,
                                           );
-                                          if (!isSelected) {
-                                            _openVehicleSheet(context, option);
-                                          }
+                                          _openVehicleSheet(context, option);
                                         },
                                         onMapTap: () {
                                           Get.to(
@@ -375,6 +380,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                     color: const Color(0xFF4CAF50),
                                     onTap: () => Get.toNamed(
                                       RouteNames.locationSearch,
+                                      arguments: <String, dynamic>{
+                                        'target': controller.nextSelectionTarget ==
+                                                LocationSelectionTarget.drop
+                                            ? 'drop'
+                                            : 'pickup',
+                                      },
                                     ),
                                   ),
                                 ],
@@ -383,8 +394,15 @@ class _HomeScreenState extends State<HomeScreen> {
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton(
-                                  onPressed: () =>
-                                      Get.toNamed(RouteNames.locationSearch),
+                                  onPressed: () => Get.toNamed(
+                                    RouteNames.locationSearch,
+                                    arguments: <String, dynamic>{
+                                      'target': controller.nextSelectionTarget ==
+                                              LocationSelectionTarget.drop
+                                          ? 'drop'
+                                          : 'pickup',
+                                    },
+                                  ),
                                   child: const Padding(
                                     padding: EdgeInsets.symmetric(vertical: 2),
                                     child: Text(

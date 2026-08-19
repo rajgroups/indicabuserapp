@@ -107,6 +107,10 @@ class _TrackRideScreenState extends State<TrackRideScreen> {
             polylines: _polylines,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
+            scrollGesturesEnabled: true,
+            zoomGesturesEnabled: true,
+            rotateGesturesEnabled: true,
+            tiltGesturesEnabled: true,
           ),
 
           // 2. Floating Top Bar

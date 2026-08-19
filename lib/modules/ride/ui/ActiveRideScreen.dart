@@ -864,6 +864,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
             polylines: _polylines,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
+            scrollGesturesEnabled: true,
+            zoomGesturesEnabled: true,
+            rotateGesturesEnabled: true,
+            tiltGesturesEnabled: true,
           ),
 
           // -- Top Bar --

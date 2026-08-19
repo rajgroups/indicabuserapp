@@ -10,6 +10,7 @@ import 'package:indicab/modules/history/ui/ride_details.dart';
 import 'package:indicab/modules/history/ui/ride_history.dart';
 import 'package:indicab/modules/home/ui/Home.dart';
 import 'package:indicab/modules/home/ui/LocationSearchScreen.dart';
+import 'package:indicab/modules/home/ui/PickLocationMapScreen.dart';
 import 'package:indicab/modules/ride/ui/ActiveRideScreen.dart';
 import 'package:indicab/modules/ride/ui/FindingDriverScreen.dart';
 import 'package:indicab/modules/ride/ui/ride_summary_screen.dart';
@@ -37,6 +38,10 @@ class AppRoutes {
     GetPage(
       name: RouteNames.locationSearch,
       page: () => const LocationSearchScreen(),
+    ),
+    GetPage(
+      name: RouteNames.pickLocationMap,
+      page: () => const PickLocationMapScreen(),
     ),
     GetPage(
       name: RouteNames.findingDriver,

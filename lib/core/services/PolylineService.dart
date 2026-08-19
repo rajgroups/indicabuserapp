@@ -52,7 +52,8 @@ class PolylineService {
   /// Fetch a route between [origin] and [destination].
   ///
   /// Returns the cached result if positions haven't moved significantly.
-  /// Falls back to a straight line if the API key is missing or request fails.
+  /// Uses Google Directions first and only falls back to a straight line
+  /// for the current call when the API is unavailable or returns no route.
   Future<DirectionsResult> fetchRoute(
     LatLng origin,
     LatLng destination, {
@@ -71,21 +72,21 @@ class PolylineService {
 
     final key = AppEnv.googleMapsApiKey;
     if (key.isEmpty) {
-      final fallback = DirectionsResult(
+      return DirectionsResult(
         points: [origin, destination],
         distanceText: '',
         durationText: '',
         distanceMeters: 0,
         durationSeconds: 0,
       );
-      _updateCache(origin, destination, fallback);
-      return fallback;
     }
 
     try {
       final url = 'https://maps.googleapis.com/maps/api/directions/json'
           '?origin=${origin.latitude},${origin.longitude}'
           '&destination=${destination.latitude},${destination.longitude}'
+          '&mode=driving'
+          '&alternatives=false'
           '&key=$key';
 
       final response = await _dio.get(url);
@@ -112,20 +113,23 @@ class PolylineService {
           return result;
         }
       }
+
+      debugPrint(
+        'PolylineService: Directions returned status=${response.data['status']} '
+        'for origin=$origin destination=$destination',
+      );
     } catch (e) {
       debugPrint('PolylineService: Error fetching directions: $e');
     }
 
     // Fallback: straight line
-    final fallback = DirectionsResult(
+    return DirectionsResult(
       points: [origin, destination],
       distanceText: '',
       durationText: '',
       distanceMeters: 0,
       durationSeconds: 0,
     );
-    _updateCache(origin, destination, fallback);
-    return fallback;
   }
 
   void _updateCache(

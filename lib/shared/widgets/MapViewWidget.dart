@@ -1,5 +1,3 @@
-import 'dart:ffi';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -17,6 +15,11 @@ class MapViewWidget extends StatelessWidget {
   final MapType? mapType;
   final bool? compassEnabled; 
   final bool? myLocationButtonEnabled;
+  final bool? zoomGesturesEnabled;
+  final bool? scrollGesturesEnabled;
+  final bool? rotateGesturesEnabled;
+  final bool? tiltGesturesEnabled;
+  final bool? myLocationEnabled;
   
   const MapViewWidget({
     super.key,
@@ -33,6 +36,11 @@ class MapViewWidget extends StatelessWidget {
     this.mapType, 
     this.compassEnabled, 
     this.myLocationButtonEnabled,
+    this.zoomGesturesEnabled,
+    this.scrollGesturesEnabled,
+    this.rotateGesturesEnabled,
+    this.tiltGesturesEnabled,
+    this.myLocationEnabled,
   });
 
   @override
@@ -41,8 +49,8 @@ class MapViewWidget extends StatelessWidget {
       height: MediaQuery.of(context).size.height * 1,
       child: GoogleMap(
         initialCameraPosition: CameraPosition(
-          target: pickupLocation ?? dropLocation ?? const LatLng(0, 0),
-          zoom: zoom ?? 10,
+          target: pickupLocation ?? dropLocation ?? const LatLng(12.9756, 77.6050),
+          zoom: zoom ?? 15,
         ),
         onMapCreated: onMapCreated,
         onCameraMove: onCameraMove,
@@ -51,9 +59,14 @@ class MapViewWidget extends StatelessWidget {
         markers: markers ?? {},
         polylines: polylines ?? {},
         circles: circles ?? {},
-        mapType: mapType ?? MapType.normal, // Set hybrid as default or pass from parameter
+        mapType: mapType ?? MapType.normal,
         compassEnabled: compassEnabled ?? true,
         myLocationButtonEnabled: myLocationButtonEnabled ?? true,
+        zoomGesturesEnabled: zoomGesturesEnabled ?? true,
+        scrollGesturesEnabled: scrollGesturesEnabled ?? true,
+        rotateGesturesEnabled: rotateGesturesEnabled ?? true,
+        tiltGesturesEnabled: tiltGesturesEnabled ?? true,
+        myLocationEnabled: myLocationEnabled ?? true,
       ),
     );
   }

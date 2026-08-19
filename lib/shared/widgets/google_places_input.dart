@@ -11,6 +11,7 @@ class GooglePlacesInput extends StatefulWidget {
   final Function(dynamic prediction) onPlaceSelected;
   final IconData prefixIcon;
   final Widget? suffixIcon;
+  final VoidCallback? onTap;
 
   const GooglePlacesInput({
     super.key,
@@ -19,6 +20,7 @@ class GooglePlacesInput extends StatefulWidget {
     required this.onPlaceSelected,
     required this.prefixIcon,
     this.suffixIcon,
+    this.onTap,
   });
 
   @override
@@ -52,7 +54,9 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
   }
 
   void _handleFocusChange() {
-    if (!_focusNode.hasFocus && mounted) {
+    if (_focusNode.hasFocus) {
+      widget.onTap?.call();
+    } else if (mounted) {
       setState(() {
         _suggestions.clear();
       });
@@ -284,15 +288,16 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
+      margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderSoft, width: 1),
         boxShadow: const <BoxShadow>[
           BoxShadow(
-            blurRadius: 8,
-            offset: Offset(0, 2),
-            color: Color.fromARGB(18, 0, 0, 0),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+            color: Color.fromARGB(14, 0, 0, 0),
           ),
         ],
       ),
@@ -303,6 +308,7 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
             controller: widget.controller,
             focusNode: _focusNode,
             readOnly: !_hasValidPlacesKey,
+            onTap: widget.onTap,
             onChanged: _hasValidPlacesKey ? _onChanged : null,
             decoration: InputDecoration(
               hintText: widget.hintText,
@@ -312,29 +318,39 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
               prefixIcon: Icon(widget.prefixIcon, color: AppColors.primaryDark),
               suffixIcon: _isLoading
                   ? const Padding(
-                      padding: EdgeInsets.all(14),
+                      padding: EdgeInsets.all(12),
                       child: SizedBox(
-                        width: 18,
-                        height: 18,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     )
                   : widget.suffixIcon,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
               filled: true,
               fillColor: Colors.white,
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
+                horizontal: 14,
+                vertical: 11,
               ),
+              hintStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textMuted,
+              ),
+            ),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
             ),
           ),
           if (_suggestions.isNotEmpty)
             ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
+              constraints: const BoxConstraints(maxHeight: 208),
               child: ListView.separated(
                 shrinkWrap: true,
                 padding: EdgeInsets.zero,
@@ -343,8 +359,23 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
                 itemBuilder: (BuildContext context, int index) {
                   final suggestion = _suggestions[index];
                   return ListTile(
-                    leading: const Icon(Icons.location_on_outlined),
-                    title: Text(suggestion.description),
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 0,
+                    ),
+                    leading: const Icon(
+                      Icons.location_on_outlined,
+                      size: 18,
+                    ),
+                    title: Text(
+                      suggestion.description,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     onTap: () => _selectSuggestion(suggestion),
                   );
                 },

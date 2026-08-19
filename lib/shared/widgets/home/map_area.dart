@@ -13,7 +13,6 @@ class HomeMapArea extends GetView<HomeController> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final height = width < 380 ? 390.0 : 420.0;
     final shouldShowFallback = kIsWeb || !AppEnv.hasGoogleMapsApiKey;
 
     debugPrint(
@@ -22,8 +21,7 @@ class HomeMapArea extends GetView<HomeController> {
       'showFallback=$shouldShowFallback',
     );
 
-    return SizedBox(
-      height: height,
+    return SizedBox.expand(
       child: Stack(
         children: [
           if (shouldShowFallback)
@@ -35,9 +33,15 @@ class HomeMapArea extends GetView<HomeController> {
                 pickupLocation: controller.pickupPoint.value,
                 dropLocation: controller.droplocation.value,
                 onMapCreated: controller.onMapCreated,
+                onCameraMove: controller.onLocationMapCameraMove,
+                onCameraIdle: controller.onLocationMapCameraIdle,
                 markers: controller.markers,
                 polylines: controller.polylines,
-                zoom: 2,
+                scrollGesturesEnabled: true,
+                zoomGesturesEnabled: true,
+                rotateGesturesEnabled: true,
+                tiltGesturesEnabled: true,
+                zoom: 15,
               ),
             ),
           Positioned.fill(
@@ -59,7 +63,7 @@ class HomeMapArea extends GetView<HomeController> {
           ),
           Positioned(
             right: 20,
-            bottom: 94,
+            bottom: width < 380 ? 120 : 130,
             child: Material(
               color: AppColors.surface,
               elevation: 4,
@@ -88,7 +92,15 @@ class HomeMapArea extends GetView<HomeController> {
             bottom: 18,
             child: Obx(
               () => GestureDetector(
-                onTap: () => Get.toNamed(RouteNames.locationSearch),
+                onTap: () => Get.toNamed(
+                  RouteNames.locationSearch,
+                  arguments: <String, dynamic>{
+                    'target': controller.nextSelectionTarget ==
+                            LocationSelectionTarget.drop
+                        ? 'drop'
+                        : 'pickup',
+                  },
+                ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -323,7 +335,15 @@ class HomeTopBar extends GetView<HomeController> {
           Expanded(
             child: Obx(
               () => InkWell(
-                onTap: () => Get.toNamed(RouteNames.locationSearch),
+                onTap: () => Get.toNamed(
+                  RouteNames.locationSearch,
+                  arguments: <String, dynamic>{
+                    'target': controller.nextSelectionTarget ==
+                            LocationSelectionTarget.drop
+                        ? 'drop'
+                        : 'pickup',
+                  },
+                ),
                 borderRadius: BorderRadius.circular(22),
                 child: Container(
                   padding: EdgeInsets.symmetric(

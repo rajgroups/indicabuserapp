@@ -3,6 +3,7 @@ class RouteNames {
   static const otp = '/otp';
   static const home = '/home';
   static const locationSearch = '/location-search';
+  static const pickLocationMap = '/pick-location-map';
   static const findingDriver = '/finding-driver';
   static const activeRide = '/active-ride';
   static const rideSummary = '/ride-summary';

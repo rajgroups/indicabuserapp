@@ -1,11 +1,13 @@
 // import 'dart:nativewrappers/_internal/vm/lib/ffi_native_type_patch.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/config/Config.dart';
+import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/constants/Keys.dart';
 import 'package:indicab/core/network/client.dart';
 import 'package:indicab/core/repository/BookingRepository.dart';
@@ -19,6 +21,28 @@ import 'package:indicab/modules/home/HomeService.dart';
 import 'package:indicab/modules/home/models/VehicleModels.dart';
 import 'package:indicab/modules/home/models/VehicleTypeResponse.dart';
 import 'package:indicab/core/models/booking_response.dart';
+
+class DropStopModel {
+  final String id;
+  Rxn<LatLng> location = Rxn<LatLng>();
+  RxString address = ''.obs;
+  RxString placeName = ''.obs;
+  TextEditingController controller;
+
+  DropStopModel({
+    required this.id,
+    LatLng? initialLocation,
+    String initialAddress = '',
+    String initialPlaceName = '',
+    TextEditingController? controller,
+  }) : controller = controller ?? TextEditingController(text: initialAddress) {
+    location.value = initialLocation;
+    address.value = initialAddress;
+    placeName.value = initialPlaceName;
+  }
+}
+
+enum LocationSelectionTarget { pickup, drop }
 
 class HomeController extends GetxController {
   HomeController();
@@ -44,6 +68,40 @@ class HomeController extends GetxController {
   final Rx<LatLng> pickupPoint = defaultPickup.obs;
   final RxString currentAddress = ''.obs;
 
+  // Location Selection & Dragging Map state
+  final Rx<LocationSelectionTarget> locationTarget =
+      LocationSelectionTarget.pickup.obs;
+  final RxBool isMapDragging = false.obs;
+  final RxBool isReverseGeocodingCenter = false.obs;
+  final RxString centerPinAddress = ''.obs;
+  final RxBool isMapViewMode = false.obs;
+  final RxList<String> recentSearches = <String>[
+    'MG Road, Bengaluru',
+    'Indiranagar 100ft Road, Bengaluru',
+    'Koramangala 5th Block, Bengaluru',
+    'Kempegowda International Airport, Bengaluru',
+  ].obs;
+  CameraPosition? lastCameraPosition;
+  int _locationCommitVersion = 0;
+  LatLng? _dragPreviewPoint;
+  LocationSelectionTarget? _dragPreviewTarget;
+  Timer? _dragRouteDebounce;
+  int _suppressedCameraCallbackDepth = 0;
+
+  void addRecentSearch(String address) {
+    final trimmed = address.trim();
+    if (trimmed.isEmpty || trimmed.startsWith('Location (')) return;
+    recentSearches.removeWhere((item) => item.toLowerCase() == trimmed.toLowerCase());
+    recentSearches.insert(0, trimmed);
+    if (recentSearches.length > 8) {
+      recentSearches.removeLast();
+    }
+  }
+
+  // Multi-Stop Drop Locations
+  final RxList<DropStopModel> dropStops = <DropStopModel>[].obs;
+  final RxInt activeDropStopIndex = 0.obs;
+
   // Lat and Lng details
   Rxn<LatLng> pickuplocation = Rxn<LatLng>();
   Rxn<LatLng> droplocation = Rxn<LatLng>();
@@ -58,6 +116,8 @@ class HomeController extends GetxController {
 
   RxSet<Marker> markers = <Marker>{}.obs;
   RxSet<Polyline> polylines = <Polyline>{}.obs;
+  BitmapDescriptor? _pickupMarkerIcon;
+  BitmapDescriptor? _dropMarkerIcon;
 
   final PolylineService _polylineService = PolylineService();
 
@@ -68,6 +128,7 @@ class HomeController extends GetxController {
 
   @override
   void onClose() {
+    _dragRouteDebounce?.cancel();
     originController.dispose();
     destController.dispose();
     super.onClose();
@@ -81,6 +142,8 @@ class HomeController extends GetxController {
 
   Future<void> _initialize() async {
     originController.text = "Current Location";
+    _ensureInitialDropStop();
+    await _loadCustomMarkerIcons();
 
     final token = await _readStoredToken();
 
@@ -88,6 +151,238 @@ class HomeController extends GetxController {
       _socketService.setToken(token);
       await _socketService.ensureConnected();
     }
+  }
+
+  Future<T> _runSilentlyWithCameraCallbacks<T>(Future<T> Function() action) async {
+    _suppressedCameraCallbackDepth++;
+    try {
+      return await action();
+    } finally {
+      _suppressedCameraCallbackDepth--;
+    }
+  }
+
+  Future<void> _loadCustomMarkerIcons() async {
+    _pickupMarkerIcon = await _buildMarker(
+      ringColor: const Color(0xFF00C853),
+      iconData: Icons.radio_button_checked_rounded,
+    );
+    _dropMarkerIcon = await _buildMarker(
+      ringColor: const Color(0xFFE53935),
+      iconData: Icons.location_on_rounded,
+    );
+    _updateMarkers();
+  }
+
+  /// Draws a Rapido-style compact circular map marker:
+  /// white disc + colored ring + colored icon, sharp at native DPI.
+  Future<BitmapDescriptor> _buildMarker({
+    required Color ringColor,
+    required IconData iconData,
+  }) async {
+    const double size = 48.0; // logical px
+    final double dpr =
+        WidgetsBinding.instance.platformDispatcher.views.isNotEmpty
+            ? WidgetsBinding.instance.platformDispatcher.views.first
+                .devicePixelRatio
+            : 3.0;
+    final int px = (size * dpr).round();
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.scale(dpr);
+
+    const double cx = size / 2;
+    const double cy = size / 2 - 2;
+    const double outerR = 20.0;
+    const double innerR = 14.0;
+
+    // Drop shadow
+    canvas.drawCircle(
+      const Offset(cx, cy + 2),
+      outerR,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.18)
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+    );
+
+    // Outer colored ring
+    canvas.drawCircle(
+      const Offset(cx, cy),
+      outerR,
+      Paint()..color = ringColor,
+    );
+
+    // White inner disc
+    canvas.drawCircle(
+      const Offset(cx, cy),
+      innerR,
+      Paint()..color = Colors.white,
+    );
+
+    // Colored icon centered
+    final tp = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(iconData.codePoint),
+        style: TextStyle(
+          fontSize: 16,
+          fontFamily: iconData.fontFamily,
+          package: iconData.fontPackage,
+          color: ringColor,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(
+      canvas,
+      Offset(cx - tp.width / 2, cy - tp.height / 2),
+    );
+
+    final img = await recorder.endRecording().toImage(px, px);
+    final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(
+      bytes!.buffer.asUint8List(),
+      imagePixelRatio: dpr,
+    );
+  }
+
+  LocationSelectionTarget get nextSelectionTarget {
+    if (pickuplocation.value == null) {
+      return LocationSelectionTarget.pickup;
+    }
+    if (droplocation.value == null) {
+      return LocationSelectionTarget.drop;
+    }
+    return LocationSelectionTarget.pickup;
+  }
+
+  void _ensureInitialDropStop() {
+    if (dropStops.isEmpty) {
+      dropStops.add(
+        DropStopModel(
+          id: 'stop_0',
+          initialLocation: droplocation.value,
+          initialAddress: dropAddress.value,
+          initialPlaceName: dropPlaceName.value,
+          controller: destController,
+        ),
+      );
+    }
+  }
+
+  void addDropStop() {
+    _ensureInitialDropStop();
+    if (dropStops.length >= 6) {
+      Get.snackbar(
+        'Maximum Stops Reached',
+        'You can add up to 6 drop locations.',
+        backgroundColor: AppColors.surface,
+      );
+      return;
+    }
+    final index = dropStops.length;
+    final newStop = DropStopModel(id: 'stop_$index');
+    dropStops.add(newStop);
+    activeDropStopIndex.value = index;
+    locationTarget.value = LocationSelectionTarget.drop;
+  }
+
+  void removeDropStop(int index) {
+    if (index < 0 || index >= dropStops.length) return;
+    if (dropStops.length <= 1) {
+      final stop = dropStops[0];
+      stop.location.value = null;
+      stop.address.value = '';
+      stop.placeName.value = '';
+      stop.controller.clear();
+      droplocation.value = null;
+      dropAddress.value = '';
+      dropPlaceName.value = '';
+      dropCoordinates.value = '';
+      destController.clear();
+    } else {
+      final removed = dropStops.removeAt(index);
+      if (removed.controller != destController) {
+        removed.controller.dispose();
+      }
+      if (activeDropStopIndex.value >= dropStops.length) {
+        activeDropStopIndex.value = dropStops.length - 1;
+      }
+      _syncPrimaryDropWithStops();
+    }
+    _updateMarkers();
+    updateRoutePolyline();
+    getVehicleType();
+  }
+
+  void setActiveDropStop(int index) {
+    _ensureInitialDropStop();
+    if (index >= 0 && index < dropStops.length) {
+      activeDropStopIndex.value = index;
+      locationTarget.value = LocationSelectionTarget.drop;
+      final stopLocation = dropStops[index].location.value;
+      if (stopLocation != null && _mapController != null) {
+        unawaited(
+          _runSilentlyWithCameraCallbacks(() async {
+            await _mapController!.animateCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(target: stopLocation, zoom: 15.5),
+              ),
+            );
+          }),
+        );
+      }
+    }
+  }
+
+  void _syncPrimaryDropWithStops() {
+    if (dropStops.isEmpty) {
+      droplocation.value = null;
+      dropAddress.value = '';
+      dropPlaceName.value = '';
+      dropCoordinates.value = '';
+      destController.clear();
+      return;
+    }
+
+    final validStops =
+        dropStops.where((s) => s.location.value != null).toList();
+    if (validStops.isNotEmpty) {
+      final lastStop = validStops.last;
+      droplocation.value = lastStop.location.value;
+      dropAddress.value = lastStop.address.value;
+      dropPlaceName.value = lastStop.placeName.value;
+      dropCoordinates.value =
+          _formatCoordinates(lastStop.location.value!);
+      destController.text = lastStop.address.value;
+    } else {
+      droplocation.value = null;
+      dropAddress.value = '';
+      dropPlaceName.value = '';
+      dropCoordinates.value = '';
+      destController.clear();
+    }
+  }
+
+  Future<void> setDropStop(int index, dynamic place) async {
+    _ensureInitialDropStop();
+    if (index < 0 || index >= dropStops.length) return;
+    final latlng = LatLng(double.parse(place.lat), double.parse(place.lng));
+    final addr = place.formattedAddress.isNotEmpty
+        ? place.formattedAddress
+        : place.description;
+
+    final stop = dropStops[index];
+    stop.location.value = latlng;
+    stop.address.value = addr;
+    stop.placeName.value = place.name;
+    stop.controller.text = addr;
+
+    _syncPrimaryDropWithStops();
+    _updateMarkers();
+    await updateRoutePolyline();
+    await _focusMapOnSelectedLocations();
+    await getVehicleType();
   }
 
   Future<String?> _readStoredToken() async {
@@ -151,6 +446,12 @@ class HomeController extends GetxController {
   }
 
   Future<void> setPickup(dynamic place) async {
+    locationTarget.value = LocationSelectionTarget.pickup;
+    isMapDragging.value = false;
+    isReverseGeocodingCenter.value = false;
+    _dragPreviewPoint = null;
+    _dragPreviewTarget = null;
+    _dragRouteDebounce?.cancel();
     final latlng = LatLng(double.parse(place.lat), double.parse(place.lng));
 
     pickupPoint.value = latlng;
@@ -162,12 +463,18 @@ class HomeController extends GetxController {
     pickupCoordinates.value = _formatCoordinates(latlng);
     originController.text = pickupAddress.value;
     _updateMarkers();
-    await updateRoutePolyline();
+    await updateRoutePolyline(forceRefresh: true);
     await _focusMapOnSelectedLocations();
     await getVehicleType();
   }
 
   Future<void> setDrop(dynamic place) async {
+    locationTarget.value = LocationSelectionTarget.drop;
+    isMapDragging.value = false;
+    isReverseGeocodingCenter.value = false;
+    _dragPreviewPoint = null;
+    _dragPreviewTarget = null;
+    _dragRouteDebounce?.cancel();
     final latlng = LatLng(double.parse(place.lat), double.parse(place.lng));
 
     droplocation.value = latlng;
@@ -178,9 +485,52 @@ class HomeController extends GetxController {
     dropCoordinates.value = _formatCoordinates(latlng);
     destController.text = dropAddress.value;
     _updateMarkers();
-    await updateRoutePolyline();
+    await updateRoutePolyline(forceRefresh: true);
     await _focusMapOnSelectedLocations();
     await getVehicleType();
+  }
+
+  LatLng _effectivePickupPoint() {
+    final previewActive = isMapViewMode.value &&
+        isMapDragging.value &&
+        _dragPreviewTarget == LocationSelectionTarget.pickup &&
+        _dragPreviewPoint != null;
+    return previewActive ? _dragPreviewPoint! : (pickuplocation.value ?? pickupPoint.value);
+  }
+
+  LatLng? _effectiveDropPointForMarker() {
+    final previewActive = isMapViewMode.value &&
+        isMapDragging.value &&
+        _dragPreviewTarget == LocationSelectionTarget.drop &&
+        _dragPreviewPoint != null;
+    return previewActive ? _dragPreviewPoint : droplocation.value;
+  }
+
+  List<LatLng> _effectiveDropLocations() {
+    final previewActive = isMapViewMode.value &&
+        isMapDragging.value &&
+        _dragPreviewTarget == LocationSelectionTarget.drop &&
+        _dragPreviewPoint != null;
+
+    if (!previewActive || dropStops.isEmpty) {
+      return dropStops
+          .map((s) => s.location.value)
+          .whereType<LatLng>()
+          .toList();
+    }
+
+    final points = <LatLng>[];
+    for (int i = 0; i < dropStops.length; i++) {
+      final stop = dropStops[i];
+      final pos = i == activeDropStopIndex.value ? _dragPreviewPoint : stop.location.value;
+      if (pos != null) {
+        points.add(pos);
+      }
+    }
+    if (points.isEmpty && _dragPreviewPoint != null) {
+      points.add(_dragPreviewPoint!);
+    }
+    return points;
   }
 
   void swapLocations() {
@@ -212,25 +562,43 @@ class HomeController extends GetxController {
   }
 
   Future<void> updateRoutePolyline({bool forceRefresh = false}) async {
-    final pickup = pickuplocation.value ?? pickupPoint.value;
-    final drop = droplocation.value;
+    final pickup = _effectivePickupPoint();
+    final validDropLocations = _effectiveDropLocations();
 
-    if (drop != null) {
-      final routeResult = await _polylineService.fetchRoute(
-        pickup,
-        drop,
-        forceRefresh: forceRefresh,
-      );
-      if (routeResult.points.isNotEmpty) {
+    if (validDropLocations.isEmpty && droplocation.value != null) {
+      validDropLocations.add(droplocation.value!);
+    }
+
+    if (validDropLocations.isNotEmpty) {
+      final List<LatLng> allRoutePoints = [];
+      LatLng currentStart = pickup;
+
+      for (final target in validDropLocations) {
+        final routeResult = await _polylineService.fetchRoute(
+          currentStart,
+          target,
+          forceRefresh: forceRefresh,
+        );
+        if (routeResult.points.isNotEmpty) {
+          allRoutePoints.addAll(routeResult.points);
+        } else {
+          allRoutePoints.add(currentStart);
+          allRoutePoints.add(target);
+        }
+        currentStart = target;
+      }
+
+      if (allRoutePoints.isNotEmpty) {
         polylines.assignAll({
           Polyline(
             polylineId: const PolylineId('active_route'),
-            points: routeResult.points,
-            color: const Color(0xFFFFB800),
+            points: allRoutePoints,
+            color: Colors.black,
             width: 5,
             jointType: JointType.round,
             startCap: Cap.roundCap,
             endCap: Cap.roundCap,
+            geodesic: true,
           ),
         });
         polylines.refresh();
@@ -247,41 +615,81 @@ class HomeController extends GetxController {
   Future<void> launchExternalNavigation() async {
     final pickup = pickuplocation.value ?? pickupPoint.value;
     final drop = droplocation.value;
+    if (drop == null) return;
 
-    if (drop != null) {
-      await PolylineService.launchExternalNavigation(
-        destLat: drop.latitude,
-        destLng: drop.longitude,
-        originLat: pickup.latitude,
-        originLng: pickup.longitude,
-      );
-    }
+    await PolylineService.launchExternalNavigation(
+      destLat: drop.latitude,
+      destLng: drop.longitude,
+      originLat: pickup.latitude,
+      originLng: pickup.longitude,
+    );
   }
 
   void _updateMarkers() {
     markers.clear();
 
-    if (pickuplocation.value != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('pickup'),
-          position: pickuplocation.value!,
-          infoWindow: const InfoWindow(title: 'Pickup'),
-        ),
-      );
-    }
+    final activePickup = _effectivePickupPoint();
+    final activeDropPoint = _effectiveDropPointForMarker();
 
-    if (droplocation.value != null) {
+    markers.add(
+      Marker(
+        markerId: const MarkerId('pickup'),
+        position: activePickup,
+        anchor: const Offset(0.5, 1.0),
+        infoWindow: InfoWindow(
+          title: 'Pickup Location',
+          snippet: pickupAddress.value,
+        ),
+        icon: _pickupMarkerIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      ),
+    );
+
+    if (dropStops.isEmpty && activeDropPoint != null) {
       markers.add(
         Marker(
           markerId: const MarkerId('drop'),
-          position: droplocation.value!,
-          infoWindow: const InfoWindow(title: 'Drop'),
+          position: activeDropPoint,
+          anchor: const Offset(0.5, 1.0),
+          infoWindow: InfoWindow(
+            title: 'Destination',
+            snippet: dropAddress.value,
+          ),
+          icon: _dropMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );
+    } else {
+      for (int i = 0; i < dropStops.length; i++) {
+        final stop = dropStops[i];
+        final pos = (isMapViewMode.value &&
+                isMapDragging.value &&
+                _dragPreviewTarget == LocationSelectionTarget.drop &&
+                i == activeDropStopIndex.value &&
+                _dragPreviewPoint != null)
+            ? _dragPreviewPoint
+            : stop.location.value;
+        if (pos != null) {
+          final isLast = i == dropStops.length - 1;
+          final title = isLast ? 'Destination' : 'Stop ${i + 1}';
+          markers.add(
+            Marker(
+              markerId: MarkerId('drop_$i'),
+              position: pos,
+              anchor: const Offset(0.5, 1.0),
+              infoWindow: InfoWindow(
+                title: title,
+                snippet: stop.address.value,
+              ),
+              icon: _dropMarkerIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+            ),
+          );
+        }
+      }
     }
 
-    markers.refresh(); // important
+    markers.refresh();
   }
 
   Future<void> _focusMapOnSelectedLocations() async {
@@ -306,25 +714,29 @@ class HomeController extends GetxController {
           ? pickup.longitude
           : drop.longitude;
 
-      await _mapController!.animateCamera(
-        CameraUpdate.newLatLngBounds(
-          LatLngBounds(
-            southwest: LatLng(south, west),
-            northeast: LatLng(north, east),
+      await _runSilentlyWithCameraCallbacks(() async {
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngBounds(
+            LatLngBounds(
+              southwest: LatLng(south, west),
+              northeast: LatLng(north, east),
+            ),
+            72,
           ),
-          72,
-        ),
-      );
+        );
+      });
       return;
     }
 
     final LatLng? target = drop ?? pickup;
     if (target != null) {
-      await _mapController!.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: target, zoom: 15),
-        ),
-      );
+      await _runSilentlyWithCameraCallbacks(() async {
+        await _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(target: target, zoom: 15),
+          ),
+        );
+      });
     }
   }
 
@@ -337,7 +749,10 @@ class HomeController extends GetxController {
   Marker get pickupMarker => Marker(
     markerId: const MarkerId('pickup'),
     position: pickupPoint.value,
+    anchor: const Offset(0.5, 1.0),
     infoWindow: InfoWindow(title: currentAddress.value),
+    icon: _pickupMarkerIcon ??
+        BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
   );
 
   @override
@@ -429,11 +844,13 @@ class HomeController extends GetxController {
         }
 
         if (_mapController != null) {
-          await _mapController!.animateCamera(
-            CameraUpdate.newCameraPosition(
-              CameraPosition(target: latlng, zoom: 15),
-            ),
-          );
+          await _runSilentlyWithCameraCallbacks(() async {
+            await _mapController!.animateCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(target: latlng, zoom: 15),
+              ),
+            );
+          });
         }
       }
     } catch (e) {
@@ -444,11 +861,13 @@ class HomeController extends GetxController {
   Future<void> moveToCurrentLocation() async {
     if (_mapController != null) {
       try {
-        await _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(target: pickupPoint.value, zoom: 15.5),
-          ),
-        );
+        await _runSilentlyWithCameraCallbacks(() async {
+          await _mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(target: pickupPoint.value, zoom: 15.5),
+            ),
+          );
+        });
       } catch (e) {
         debugPrint('Error animating camera to pickup point: $e');
       }
@@ -535,13 +954,133 @@ class HomeController extends GetxController {
     debugPrint('GoogleMap created successfully');
   }
 
+  void setLocationTarget(LocationSelectionTarget target) {
+    locationTarget.value = target;
+  }
+
+  void exitLocationSelection() {
+    isMapViewMode.value = false;
+    isMapDragging.value = false;
+    isReverseGeocodingCenter.value = false;
+    lastCameraPosition = null;
+    _dragPreviewPoint = null;
+    _dragPreviewTarget = null;
+    _dragRouteDebounce?.cancel();
+  }
+
+  void onLocationMapCameraMove(CameraPosition position) {
+    if (!isMapViewMode.value || _suppressedCameraCallbackDepth > 0) {
+      return;
+    }
+    lastCameraPosition = position;
+    _dragPreviewPoint = position.target;
+    _dragPreviewTarget = locationTarget.value;
+    if (!isMapDragging.value) {
+      isMapDragging.value = true;
+    }
+    _dragRouteDebounce?.cancel();
+    _dragRouteDebounce = Timer(const Duration(milliseconds: 120), () {
+      _updateMarkers();
+      unawaited(updateRoutePolyline(forceRefresh: true));
+    });
+  }
+
+  Future<void> onLocationMapCameraIdle() async {
+    if (!isMapViewMode.value || _suppressedCameraCallbackDepth > 0) {
+      isMapDragging.value = false;
+      isReverseGeocodingCenter.value = false;
+      return;
+    }
+    isMapDragging.value = false;
+    final targetPoint = lastCameraPosition?.target;
+    if (targetPoint == null) return;
+
+    final int commitVersion = ++_locationCommitVersion;
+    isReverseGeocodingCenter.value = true;
+
+    // Commit the dragged point immediately so the marker and route stay in sync
+    // with the center pin, then enrich the address once geocoding returns.
+    if (locationTarget.value == LocationSelectionTarget.pickup) {
+      pickupPoint.value = targetPoint;
+      pickuplocation.value = targetPoint;
+      pickupCoordinates.value = _formatCoordinates(targetPoint);
+    } else {
+      _ensureInitialDropStop();
+      final idx = activeDropStopIndex.value < dropStops.length
+          ? activeDropStopIndex.value
+          : dropStops.length - 1;
+      final stop = dropStops[idx];
+      stop.location.value = targetPoint;
+      dropCoordinates.value = _formatCoordinates(targetPoint);
+      stop.controller.text = stop.address.value.isNotEmpty
+          ? stop.address.value
+          : stop.controller.text;
+      final currentAddressText = stop.address.value;
+      if (currentAddressText.isNotEmpty) {
+        dropAddress.value = currentAddressText;
+      }
+    }
+    _updateMarkers();
+    await updateRoutePolyline(forceRefresh: true);
+
+    try {
+      final address = await _polylineService.reverseGeocode(
+        targetPoint.latitude,
+        targetPoint.longitude,
+      );
+
+      if (commitVersion != _locationCommitVersion || !isMapViewMode.value) {
+        return;
+      }
+
+      if (address != null && address.trim().isNotEmpty) {
+        centerPinAddress.value = address;
+        if (locationTarget.value == LocationSelectionTarget.pickup) {
+          _setPickupAddressDetails(address);
+        } else {
+          final idx = activeDropStopIndex.value < dropStops.length
+              ? activeDropStopIndex.value
+              : dropStops.length - 1;
+          final stop = dropStops[idx];
+          stop.address.value = address;
+          stop.controller.text = address;
+          final parts = address
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+          if (parts.length >= 2) {
+            stop.placeName.value = parts.take(2).join(', ');
+          } else if (parts.isNotEmpty) {
+            stop.placeName.value = parts.first;
+          }
+          _syncPrimaryDropWithStops();
+        }
+      }
+
+      _updateMarkers();
+      await updateRoutePolyline();
+      await getVehicleType();
+    } catch (error) {
+      debugPrint('HomeController.onLocationMapCameraIdle error: $error');
+    } finally {
+      if (commitVersion == _locationCommitVersion) {
+        isReverseGeocodingCenter.value = false;
+      }
+      _dragPreviewPoint = null;
+      _dragPreviewTarget = null;
+    }
+  }
+
   Future<void> onMapTapped(LatLng newPoint) async {
     debugPrint(
       'GoogleMap tap: lat=${newPoint.latitude}, lng=${newPoint.longitude}',
     );
     pickupPoint.value = newPoint;
     if (_mapController != null) {
-      await _mapController!.animateCamera(CameraUpdate.newLatLng(newPoint));
+      await _runSilentlyWithCameraCallbacks(() async {
+        await _mapController!.animateCamera(CameraUpdate.newLatLng(newPoint));
+      });
     }
     await refreshAddressFor(newPoint);
   }
@@ -572,23 +1111,35 @@ class HomeController extends GetxController {
   }
 
   double calculateDistanceKm() {
-    final pickup = pickuplocation.value ?? pickupPoint.value;
-    final drop = droplocation.value;
+    final pickup = _effectivePickupPoint();
+    final validDropLocations = _effectiveDropLocations();
 
-    if (drop == null) {
-      return 0.0;
+    if (validDropLocations.isEmpty) {
+      if (droplocation.value != null) {
+        validDropLocations.add(droplocation.value!);
+      } else {
+        return 0.0;
+      }
     }
 
-    const earthRadiusKm = 6371.0;
-    final dLat = (drop.latitude - pickup.latitude) * 3.1415926535897932 / 180.0;
-    final dLng = (drop.longitude - pickup.longitude) * 3.1415926535897932 / 180.0;
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(pickup.latitude * 3.1415926535897932 / 180.0) *
-            math.cos(drop.latitude * 3.1415926535897932 / 180.0) *
-            math.sin(dLng / 2) *
-            math.sin(dLng / 2);
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return earthRadiusKm * c;
+    double totalKm = 0.0;
+    LatLng current = pickup;
+
+    for (final target in validDropLocations) {
+      const earthRadiusKm = 6371.0;
+      final dLat = (target.latitude - current.latitude) * math.pi / 180.0;
+      final dLng = (target.longitude - current.longitude) * math.pi / 180.0;
+      final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+          math.cos(current.latitude * math.pi / 180.0) *
+              math.cos(target.latitude * math.pi / 180.0) *
+              math.sin(dLng / 2) *
+              math.sin(dLng / 2);
+      final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+      totalKm += earthRadiusKm * c;
+      current = target;
+    }
+
+    return totalKm;
   }
 
   Future<void> getVehicleType() async {
@@ -669,6 +1220,11 @@ class HomeController extends GetxController {
       return;
     }
 
+    selectedVehicle.value = vehicle;
+    unawaited(getVehicleType());
+  }
+
+  void selectVehicle(VehicleOption vehicle) {
     selectedVehicle.value = vehicle;
     unawaited(getVehicleType());
   }
