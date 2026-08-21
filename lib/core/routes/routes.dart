@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:indicab/core/bindings/AuthBinding.dart';
 import 'package:indicab/core/bindings/HomeBinding.dart';
 import 'package:indicab/layout/partials/menu.dart';
+import 'package:indicab/modules/splash/SplashScreen.dart';
 import 'package:indicab/modules/auth/ui/login.dart';
 import 'package:indicab/modules/auth/ui/otp.dart';
 import 'package:indicab/core/models/booking_request.dart';
@@ -17,9 +18,13 @@ import 'package:indicab/modules/ride/ui/ride_summary_screen.dart';
 import 'names.dart';
 
 class AppRoutes {
-  static const initial = RouteNames.login;
+  static const initial = RouteNames.splash;
 
   static final pages = [
+    GetPage(
+      name: RouteNames.splash,
+      page: () => const SplashScreen(),
+    ),
     GetPage(
       name: RouteNames.login,
       page: () => const LoginScreen(),

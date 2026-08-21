@@ -27,7 +27,6 @@ class HomeMapArea extends GetView<HomeController> {
           if (shouldShowFallback)
             _MapSetupFallback(isWeb: kIsWeb)
           else
-
             Obx(
               () => MapViewWidget(
                 pickupLocation: controller.pickupPoint.value,
@@ -44,6 +43,8 @@ class HomeMapArea extends GetView<HomeController> {
                 zoom: 15,
               ),
             ),
+
+          // Subtle vignette gradient
           Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
@@ -52,33 +53,35 @@ class HomeMapArea extends GetView<HomeController> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      AppColors.authBackground.withValues(alpha: 0.08),
-                      AppColors.authBackground.withValues(alpha: 0.02),
-                      AppColors.authBackground.withValues(alpha: 0),
+                      Colors.black.withValues(alpha: 0.04),
+                      Colors.transparent,
+                      Colors.transparent,
                     ],
                   ),
                 ),
               ),
             ),
           ),
+
+          // ── My-location FAB ───────────────────────────────────────────
           Positioned(
-            right: 20,
+            right: 16,
             bottom: width < 380 ? 120 : 130,
             child: Material(
-              color: AppColors.surface,
+              color: Colors.white,
               elevation: 4,
-              shadowColor: const Color(0x33000000),
+              shadowColor: Colors.black.withValues(alpha: 0.14),
               shape: const CircleBorder(),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
                 onTap: controller.moveToCurrentLocation,
                 child: const SizedBox(
-                  width: 44,
-                  height: 44,
+                  width: 46,
+                  height: 46,
                   child: Center(
                     child: Icon(
                       Icons.my_location_rounded,
-                      color: AppColors.textPrimary,
+                      color: Color(0xFF1A1A2E),
                       size: 22,
                     ),
                   ),
@@ -86,10 +89,12 @@ class HomeMapArea extends GetView<HomeController> {
               ),
             ),
           ),
+
+          // ── Bottom CTA: destination quick-tap card ─────────────────────
           Positioned(
-            left: 20,
-            right: 20,
-            bottom: 18,
+            left: 16,
+            right: 16,
+            bottom: 16,
             child: Obx(
               () => GestureDetector(
                 onTap: () => Get.toNamed(
@@ -104,31 +109,35 @@ class HomeMapArea extends GetView<HomeController> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 14,
+                    vertical: 13,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.surface.withValues(alpha: 0.95),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [
+                    color: const Color(0xFF1A1A2E),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
                       BoxShadow(
-                        color: Color(0x16000000),
-                        blurRadius: 18,
-                        offset: Offset(0, 8),
+                        color: const Color(0xFF1A1A2E).withValues(alpha: 0.30),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
                   child: Row(
                     children: [
+                      // Teardrop icon
                       Container(
-                        width: 40,
-                        height: 40,
+                        width: 38,
+                        height: 38,
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(14),
+                          color: const Color(0xFFE53935).withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          color: AppColors.primaryDark,
+                        child: const Center(
+                          child: Icon(
+                            Icons.location_on_rounded,
+                            color: Color(0xFFE53935),
+                            size: 20,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -137,53 +146,50 @@ class HomeMapArea extends GetView<HomeController> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              controller.isAddressLoading.value
-                                  ? 'Finding address...'
-                                  : 'Drop location',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
+                            const Text(
+                              'DROP LOCATION',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFE53935),
+                                letterSpacing: 0.6,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 3),
                             Text(
                               controller.dropAddress.value.isNotEmpty
                                   ? controller.dropAddress.value
                                   : 'Tap to select destination',
-                              maxLines: 2,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
+                                color: Colors.white,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      if (controller.droplocation.value != null) ...[
-                        const SizedBox(width: 8),
-                        InkWell(
+                      const SizedBox(width: 10),
+                      if (controller.droplocation.value != null)
+                        // Navigate button
+                        GestureDetector(
                           onTap: controller.launchExternalNavigation,
-                          borderRadius: BorderRadius.circular(14),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
+                                horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(14),
+                              color: const Color(0xFF00C853),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
                                   Icons.navigation_rounded,
-                                  size: 16,
-                                  color: AppColors.textPrimary,
+                                  size: 15,
+                                  color: Colors.white,
                                 ),
                                 SizedBox(width: 4),
                                 Text(
@@ -191,31 +197,29 @@ class HomeMapArea extends GetView<HomeController> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
-                                    color: AppColors.textPrimary,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                      ] else ...[
-                        const SizedBox(width: 8),
+                        )
+                      else
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(14),
+                            color: Colors.white.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 16,
-                            color: AppColors.primaryDark,
+                          child: const Center(
+                            child: Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 18,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ],
                     ],
                   ),
                 ),
@@ -238,7 +242,7 @@ class _MapSetupFallback extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFF8F6F0), Color(0xFFF7F0D7)],
+          colors: [Color(0xFFF5F6FA), Color(0xFFEDF0F7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -246,34 +250,44 @@ class _MapSetupFallback extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Center(
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: AppColors.surface.withValues(alpha: 0.96),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 24,
-                offset: Offset(0, 10),
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.map_rounded,
-                size: 42,
-                color: AppColors.primaryDark,
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A2E).withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.map_rounded,
+                    size: 30,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Text(
                 isWeb ? 'Google Maps web setup needed' : 'Add your Google Maps key',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                  color: Color(0xFF1A1A2E),
                 ),
               ),
               const SizedBox(height: 8),
@@ -301,40 +315,37 @@ class HomeTopBar extends GetView<HomeController> {
 
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top;
     final width = MediaQuery.of(context).size.width;
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 22, left: 20, right: 20),
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, topPad + 10, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(
+          bottom: Radius.circular(20),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          InkWell(
+          // Hamburger menu button
+          _NavButton(
+            icon: Icons.menu_rounded,
             onTap: () => Get.toNamed(RouteNames.menu),
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              width: width < 380 ? 48 : 54,
-              height: width < 380 ? 48 : 54,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x16000000),
-                    blurRadius: 18,
-                    offset: Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.menu_rounded,
-                size: 28,
-                color: AppColors.textPrimary,
-              ),
-            ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
+
+          // Location pill (tap → location search)
           Expanded(
             child: Obx(
-              () => InkWell(
+              () => GestureDetector(
                 onTap: () => Get.toNamed(
                   RouteNames.locationSearch,
                   arguments: <String, dynamic>{
@@ -344,46 +355,73 @@ class HomeTopBar extends GetView<HomeController> {
                         : 'pickup',
                   },
                 ),
-                borderRadius: BorderRadius.circular(22),
                 child: Container(
                   padding: EdgeInsets.symmetric(
-                    horizontal: width < 380 ? 14 : 18,
-                    vertical: width < 380 ? 14 : 16,
+                    horizontal: width < 380 ? 12 : 14,
+                    vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x16000000),
-                        blurRadius: 20,
-                        offset: Offset(0, 8),
-                      ),
-                    ],
+                    color: const Color(0xFFF5F6FA),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFF00C853).withValues(alpha: 0.35),
+                      width: 1.2,
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(
-                        'Pickup Location',
-                        style: TextStyle(
-                          fontSize: width < 380 ? 12 : 13,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
+                      // Green dot
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00C853),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00C853)
+                                  .withValues(alpha: 0.5),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        controller.pickupAddress.value.isNotEmpty
-                            ? controller.pickupAddress.value
-                            : 'Select Pickup Location',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: width < 380 ? 14 : 16,
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w700,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'PICKUP',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF00C853),
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              controller.pickupAddress.value.isNotEmpty
+                                  ? controller.pickupAddress.value
+                                  : 'Select pickup location',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1A1A2E),
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      const Icon(
+                        Icons.expand_more_rounded,
+                        size: 18,
+                        color: Color(0xFFB0B3C1),
                       ),
                     ],
                   ),
@@ -392,6 +430,31 @@ class HomeTopBar extends GetView<HomeController> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NavButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _NavButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF3F4F6),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: Icon(icon, size: 22, color: const Color(0xFF1A1A2E)),
+          ),
+        ),
       ),
     );
   }

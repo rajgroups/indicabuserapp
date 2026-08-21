@@ -36,6 +36,8 @@ class VehicleModel {
   final String? frontImage;
   final String? backImage;
   final String? sideImage;
+  final String? categoryIcon;
+  final String? categoryImage;
 
   final String? status;
   final bool? isVerified;
@@ -65,6 +67,8 @@ class VehicleModel {
     this.frontImage,
     this.backImage,
     this.sideImage,
+    this.categoryIcon,
+    this.categoryImage,
     this.status,
     this.isVerified, 
     this.driver, 
@@ -105,6 +109,8 @@ class VehicleModel {
       frontImage: json['front_image'] ?? images?['front'],
       backImage: json['back_image'] ?? images?['back'],
       sideImage: json['side_image'] ?? images?['side'],
+      categoryIcon: json['category_icon']?.toString(),
+      categoryImage: json['category_image']?.toString(),
       status: json['status'],
       isVerified: json['is_verified'],
       driver: json['driver'] != null ? DriverModel.fromJson(json['driver']) : null,

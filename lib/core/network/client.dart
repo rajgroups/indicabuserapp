@@ -21,7 +21,7 @@ class ApiClient {
         // baseUrl: 'https://api.indicab.com',
         
         // Local
-        baseUrl: 'http://10.245.156.83:8000/api/user',
+        baseUrl: 'http://10.72.154.83:8000/api/user',
 
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),

@@ -46,18 +46,57 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   bool _userMovedMap = false;
   bool _arrivedSheetShown = false;
 
+  String? _lastPolylineStatus;
+  Timer? _pollingTimer;
+
   // ETA info from the Directions API (fetched once per phase)
   String _etaDistance = '';
   String _etaDuration = '';
 
-  // Tracks the last status for which we fetched a polyline.
-  // This avoids re-fetching on every socket event.
-  String? _lastPolylineStatus;
+  String? get _effectiveBookingNo {
+    if (widget.bookingNo != null && widget.bookingNo!.trim().isNotEmpty) {
+      return widget.bookingNo!.trim();
+    }
+    if (_bookingData?.bookingNo != null && _bookingData!.bookingNo!.trim().isNotEmpty) {
+      return _bookingData!.bookingNo!.trim();
+    }
+    if (Get.arguments is Map && Get.arguments['booking_no'] != null) {
+      return Get.arguments['booking_no'].toString().trim();
+    }
+    return null;
+  }
 
   @override
   void initState() {
     super.initState();
-    _bookingData = widget.bookingData;
+    _bookingData = widget.bookingData ??
+        (Get.arguments is Map && Get.arguments['booking_data'] is BookingDataModel
+            ? Get.arguments['booking_data'] as BookingDataModel
+            : null);
+
+    // If initial status is already completed/cancelled, handle navigation immediately
+    final initialStatus = _bookingData?.status?.trim().toLowerCase();
+    if (initialStatus == 'completed') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (Get.currentRoute != RouteNames.rideSummary && mounted) {
+          Get.offAllNamed(
+            RouteNames.rideSummary,
+            arguments: {
+              'booking_no': _effectiveBookingNo,
+              'booking_data': _bookingData,
+            },
+          );
+        }
+      });
+      return;
+    } else if (initialStatus == 'cancelled') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Get.offAllNamed(RouteNames.home);
+        }
+      });
+      return;
+    }
 
     _driverAnimator = DriverMarkerAnimator(vsync: this);
     _driverAnimator.onUpdate = _onDriverAnimationTick;
@@ -70,8 +109,15 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       _buildMarkersAndPolyline();
     });
 
-    // Single initial API fetch for robustness
+    // Single initial API fetch
     _fetchBookingDetails();
+
+    // Periodic fallback polling timer every 3 seconds
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) {
+        _fetchBookingDetails(silent: true);
+      }
+    });
 
     // Subscribe to WebSocket events
     final socketService = Get.find<SocketService>();
@@ -83,13 +129,13 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      // Re-fetch once on app resume for robustness
       _fetchBookingDetails();
     }
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _driverAnimator.dispose();
     WidgetsBinding.instance.removeObserver(this);
     final socketService = Get.find<SocketService>();
@@ -103,7 +149,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   // ---------------------------------------------------------------------------
 
   Future<void> _fetchBookingDetails({bool silent = false}) async {
-    final bookingNo = widget.bookingNo?.trim();
+    final bookingNo = _effectiveBookingNo;
     if (bookingNo == null || bookingNo.isEmpty) return;
 
     if (!silent && mounted) {
@@ -118,13 +164,43 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       );
       final bookingData = response.data;
       if (bookingData != null && mounted) {
+        final status = bookingData.status?.trim().toLowerCase();
+
+        // If completed -> Navigate to RideSummaryScreen immediately
+        if (status == 'completed') {
+          if (Get.currentRoute != RouteNames.rideSummary) {
+            Get.offAllNamed(
+              RouteNames.rideSummary,
+              arguments: {
+                'booking_no': bookingData.bookingNo ?? bookingNo,
+                'booking_data': bookingData,
+              },
+            );
+          }
+          return;
+        }
+
+        // If cancelled -> Navigate to Home screen
+        if (status == 'cancelled') {
+          Get.snackbar(
+            'Ride Cancelled',
+            'Your ride has been cancelled.',
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+            snackPosition: SnackPosition.TOP,
+            duration: const Duration(seconds: 3),
+          );
+          Get.offAllNamed(RouteNames.home);
+          return;
+        }
+
         setState(() => _bookingData = bookingData);
         _seedDriverPosition();
         _buildMarkersAndPolyline();
       }
     } catch (e) {
       if (e is NetworkException && e.statusCode == 401) return;
-      if (mounted) {
+      if (!silent && mounted) {
         Get.snackbar(
           'Error',
           'Failed to fetch ride details',
@@ -241,13 +317,22 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   void _onBookingStatusUpdate(dynamic data) {
     if (data is! Map<String, dynamic> || !mounted) return;
 
-    final booking = data['booking'];
-    if (booking is! Map<String, dynamic>) return;
+    Map<String, dynamic>? bookingMap;
+    if (data['booking'] is Map<String, dynamic>) {
+      bookingMap = data['booking'] as Map<String, dynamic>;
+    } else if (data['booking_no'] != null) {
+      bookingMap = data;
+    }
 
-    final bookingNo = booking['booking_no']?.toString();
-    if (bookingNo != widget.bookingNo && bookingNo != _bookingData?.bookingNo) return;
+    if (bookingMap == null) return;
 
-    final newBooking = BookingDataModel.fromJson(booking);
+    final bookingNo = bookingMap['booking_no']?.toString().trim();
+    final currentNo = _effectiveBookingNo;
+    if (bookingNo != null && currentNo != null && bookingNo.isNotEmpty && bookingNo != currentNo) {
+      return;
+    }
+
+    final newBooking = BookingDataModel.fromJson(bookingMap);
     final newStatus = newBooking.status?.trim().toLowerCase();
 
     // Handle cancellation — navigate back to home with a message
@@ -271,13 +356,14 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         Get.offAllNamed(
           RouteNames.rideSummary,
           arguments: {
-            'booking_no': newBooking.bookingNo ?? widget.bookingNo,
+            'booking_no': newBooking.bookingNo ?? currentNo,
             'booking_data': newBooking,
           },
         );
       }
       return;
     }
+
 
     setState(() => _bookingData = newBooking);
 

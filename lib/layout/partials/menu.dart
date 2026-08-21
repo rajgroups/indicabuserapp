@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:indicab/core/constants/Colors.dart';
+import 'package:indicab/core/utils/Helpers.dart';
 import 'package:indicab/modules/history/ui/ride_history.dart';
 import 'package:indicab/modules/help/ui/help.dart';
 import 'package:indicab/modules/settings/ui/settings.dart';
@@ -8,32 +8,24 @@ import 'package:indicab/modules/profile/ProfileController.dart';
 import 'package:indicab/modules/profile/ui/EditProfileScreen.dart';
 import 'package:indicab/modules/auth/AuthController.dart';
 
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const _kNavy   = Color(0xFF1A1A2E);
+const _kGreen  = Color(0xFF00C853);
+const _kRed    = Color(0xFFE53935);
+const _kBg     = Color(0xFFF5F6FA);
+const _kBorder = Color(0xFFEEEFF3);
+const _kMuted  = Color(0xFFB0B3C1);
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final ProfileController profileController = Get.put(ProfileController());
+    final topPad = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      backgroundColor: AppColors.authBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
-          onPressed: Get.back,
-        ),
-        title: const Text(
-          'Profile',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ),
+      backgroundColor: _kBg,
       body: Obx(() {
         final profile = profileController.userProfile.value;
         final displayName = profile?.displayName ?? 'User';
@@ -42,255 +34,458 @@ class ProfileScreen extends StatelessWidget {
         final rating = profile?.rating ?? 4.85;
         final walletBalance = profile?.walletBalance ?? 0.0;
 
-        return ListView(
+        return CustomScrollView(
           physics: const BouncingScrollPhysics(),
-          children: [
-            // User Info Section
-            InkWell(
-              onTap: () => Get.to(() => const EditProfileScreen()),
-              child: Container(
-                color: AppColors.surface,
-                padding: const EdgeInsets.all(24),
-                child: Row(
-                  children: [
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: const BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            initial,
-                            style: const TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: -4,
-                          right: -4,
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.borderSoft, width: 1.5),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x1A000000),
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
+          slivers: [
+            // ── Collapsible hero header ───────────────────────────────
+            SliverAppBar(
+              backgroundColor: _kNavy,
+              expandedHeight: 220,
+              pinned: true,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                onPressed: Get.back,
+              ),
+              title: const Text(
+                'My Profile',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              flexibleSpace: FlexibleSpaceBar(
+                collapseMode: CollapseMode.parallax,
+                background: Container(
+                  color: _kNavy,
+                  padding: EdgeInsets.fromLTRB(20, topPad + 60, 20, 20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      GestureDetector(
+                        onTap: () => Get.to(() => const EditProfileScreen()),
+                        child: Row(
+                          children: [
+                            // Avatar
+                            Stack(
+                              children: [
+                                Container(
+                                  width: 72,
+                                  height: 72,
+                                  decoration: BoxDecoration(
+                                    color: _kGreen,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.25),
+                                        width: 2.5),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: _kGreen.withValues(alpha: 0.4),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    initial,
+                                    style: const TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: _kNavy, width: 1.5),
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit_rounded,
+                                      size: 13,
+                                      color: _kNavy,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
-                            child: const Icon(Icons.edit_rounded, size: 16, color: AppColors.textPrimary),
-                          ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    displayName,
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    displayPhone,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.white.withValues(alpha: 0.65),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.star_rounded,
+                                          size: 14, color: Color(0xFFFFCC00)),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${rating.toStringAsFixed(2)} rating',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFFFFCC00),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: Colors.white54,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  // ── Wallet card ─────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _kNavy,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _kNavy.withValues(alpha: 0.25),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Row(
                         children: [
-                          Text(
-                            displayName,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
+                          // Wallet icon
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFCC00).withValues(alpha: 0.18),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.account_balance_wallet_rounded,
+                                color: Color(0xFFFFCC00),
+                                size: 24,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            displayPhone,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'INDICAB WALLET',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFFFFCC00),
+                                    letterSpacing: 0.7,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '₹${walletBalance.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const Text(
+                                  'Available balance',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white54,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
+                          ElevatedButton(
+                            onPressed: () => Get.snackbar(
+                                'Wallet', 'Top-up coming soon!'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFCC00),
+                              foregroundColor: _kNavy,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              minimumSize: Size.zero,
+                            ),
+                            child: const Text(
+                              'Add Money',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // ── Section label ───────────────────────────────────
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 24, 20, 10),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'QUICK ACCESS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: _kGreen,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // ── Menu items card ─────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: _kBorder),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          _MenuItem(
+                            icon: Icons.history_rounded,
+                            iconBg: _kNavy.withValues(alpha: 0.10),
+                            iconColor: _kNavy,
+                            title: 'Ride History',
+                            subtitle: 'View all your trips',
+                            onTap: () => Get.to(() => const RideHistoryScreen()),
+                          ),
+                          _Divider(),
+                          _MenuItem(
+                            icon: Icons.location_on_rounded,
+                            iconBg: _kGreen.withValues(alpha: 0.10),
+                            iconColor: _kGreen,
+                            title: 'Saved Addresses',
+                            subtitle: 'Home, Work & more',
+                            isComingSoon: true,
+                            onTap: () => Helpers.showComingSoon('Saved Addresses'),
+                          ),
+                          _Divider(),
+                          _MenuItem(
+                            icon: Icons.credit_card_rounded,
+                            iconBg: const Color(0xFF6C63FF).withValues(alpha: 0.10),
+                            iconColor: const Color(0xFF6C63FF),
+                            title: 'Payment Methods',
+                            subtitle: 'Manage cards & UPI',
+                            isComingSoon: true,
+                            onTap: () => Helpers.showComingSoon('Payment Methods'),
+                          ),
+                          _Divider(),
+                          _MenuItem(
+                            icon: Icons.local_offer_rounded,
+                            iconBg: const Color(0xFFFF8F00).withValues(alpha: 0.10),
+                            iconColor: const Color(0xFFFF8F00),
+                            title: 'Offers & Coupons',
+                            subtitle: 'Save on your rides',
+                            isComingSoon: true,
+                            onTap: () => Helpers.showComingSoon('Offers & Coupons'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'ACCOUNT',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: _kGreen,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: _kBorder),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          _MenuItem(
+                            icon: Icons.help_outline_rounded,
+                            iconBg: const Color(0xFF00B4D8).withValues(alpha: 0.10),
+                            iconColor: const Color(0xFF00B4D8),
+                            title: 'Help & Support',
+                            subtitle: 'FAQs & contact us',
+                            onTap: () => Get.to(() => const HelpSupportScreen()),
+                          ),
+                          _Divider(),
+                          _MenuItem(
+                            icon: Icons.settings_rounded,
+                            iconBg: _kNavy.withValues(alpha: 0.10),
+                            iconColor: _kNavy,
+                            title: 'Settings',
+                            subtitle: 'Preferences & privacy',
+                            onTap: () => Get.to(() => const SettingsScreen()),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // ── Logout button ───────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+                    child: Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        onTap: () {
+                          Get.dialog(
+                            AlertDialog(
+                              backgroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              title: const Text(
+                                'Logout',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: _kNavy,
+                                ),
+                              ),
+                              content: const Text(
+                                'Are you sure you want to log out of Indicab?',
+                                style: TextStyle(color: _kMuted),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: Get.back,
+                                  child: const Text('Cancel',
+                                      style: TextStyle(color: _kMuted)),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Get.back();
+                                    final authController =
+                                        Get.isRegistered<AuthController>()
+                                            ? Get.find<AuthController>()
+                                            : Get.put(AuthController());
+                                    authController.logout();
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _kRed,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  child: const Text('Logout'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: _kRed.withValues(alpha: 0.3)),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.star_rounded, size: 16, color: AppColors.primaryDark),
-                              const SizedBox(width: 4),
+                              Icon(Icons.logout_rounded, color: _kRed, size: 18),
+                              SizedBox(width: 8),
                               Text(
-                                '${rating.toStringAsFixed(2)} Rating',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
+                                'Logout',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: _kRed,
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const Divider(height: 1, color: AppColors.borderSoft),
-
-            // Wallet Section
-            Container(
-              color: AppColors.surface,
-              padding: const EdgeInsets.all(24),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFFD54F), Color(0xFFFFC107)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Indicab Wallet',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                         ),
-                        Icon(Icons.card_giftcard_rounded, size: 20, color: AppColors.textPrimary),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      '₹${walletBalance.toStringAsFixed(0)}',
-                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-                    ),
-                    const Text(
-                      'Available Balance',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        Get.snackbar('Wallet', 'Wallet top-up opening soon...', backgroundColor: AppColors.surface);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.textPrimary,
-                        foregroundColor: AppColors.surface,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        minimumSize: const Size(0, 36),
                       ),
-                      child: const Text('Add Money', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const Divider(height: 1, color: AppColors.borderSoft),
+                  ),
 
-            // Menu Items
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  _ProfileMenuItem(
-                    icon: Icons.history_rounded,
-                    title: 'Ride History',
-                    subtitle: 'View all your trips',
-                    onTap: () => Get.to(() => const RideHistoryScreen()),
-                  ),
-                  _ProfileMenuItem(
-                    icon: Icons.location_on_rounded,
-                    title: 'Saved Addresses',
-                    subtitle: 'Home, Work & more',
-                    isComingSoon: true,
-                    onTap: () => Get.snackbar('Saved Addresses', 'Feature coming soon!', backgroundColor: AppColors.surface),
-                  ),
-                  _ProfileMenuItem(
-                    icon: Icons.credit_card_rounded,
-                    title: 'Payment Methods',
-                    subtitle: 'Manage cards & UPI',
-                    isComingSoon: true,
-                    onTap: () => Get.snackbar('Payment Methods', 'Feature coming soon!', backgroundColor: AppColors.surface),
-                  ),
-                  _ProfileMenuItem(
-                    icon: Icons.local_offer_rounded,
-                    title: 'Offers & Coupons',
-                    subtitle: 'Save on your rides',
-                    isComingSoon: true,
-                    onTap: () => Get.snackbar('Offers & Coupons', 'Feature coming soon!', backgroundColor: AppColors.surface),
-                  ),
-                  _ProfileMenuItem(
-                    icon: Icons.help_outline_rounded,
-                    title: 'Help & Support',
-                    subtitle: 'FAQs & Contact us',
-                    onTap: () => Get.to(() => const HelpSupportScreen()),
-                  ),
-                  _ProfileMenuItem(
-                    icon: Icons.settings_rounded,
-                    title: 'Settings',
-                    subtitle: 'Preferences & privacy',
-                    onTap: () => Get.to(() => const SettingsScreen()),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Logout Button
-                  InkWell(
-                    onTap: () {
-                      Get.dialog(
-                        AlertDialog(
-                          title: const Text('Logout'),
-                          content: const Text('Are you sure you want to log out of Indicab?'),
-                          actions: [
-                            TextButton(
-                              onPressed: Get.back,
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Get.back();
-                                final authController = Get.isRegistered<AuthController>()
-                                    ? Get.find<AuthController>()
-                                    : Get.put(AuthController());
-                                authController.logout();
-                              },
-                              style: TextButton.styleFrom(foregroundColor: Colors.red),
-                              child: const Text('Logout'),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.logout_rounded, color: Colors.red, size: 20),
-                          SizedBox(width: 8),
-                          Text('Logout', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.red)),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Indicab v1.0.0',
+                    style: TextStyle(fontSize: 12, color: _kMuted),
                   ),
                   const SizedBox(height: 32),
-                  const Text('Indicab v1.0.0', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
                 ],
               ),
             ),
@@ -301,115 +496,100 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class _ProfileMenuItem extends StatelessWidget {
-  const _ProfileMenuItem({
+// ── Menu item widget ──────────────────────────────────────────────────────────
+class _MenuItem extends StatelessWidget {
+  const _MenuItem({
     required this.icon,
+    required this.iconBg,
+    required this.iconColor,
     required this.title,
     required this.subtitle,
-    this.trailingBadge,
+    required this.onTap,
     this.isComingSoon = false,
-    this.onTap,
   });
 
   final IconData icon;
+  final Color iconBg;
+  final Color iconColor;
   final String title;
   final String subtitle;
-  final String? trailingBadge;
+  final VoidCallback onTap;
   final bool isComingSoon;
-  final VoidCallback? onTap;
+
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: onTap ?? () {},
-        borderRadius: BorderRadius.circular(16),
-        child: Opacity(
-          opacity: isComingSoon ? 0.65 : 1.0,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: isComingSoon ? AppColors.borderSoft : AppColors.inputFill,
-                    borderRadius: BorderRadius.circular(14),
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Opacity(
+            opacity: isComingSoon ? 0.7 : 1.0,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: iconBg,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                        child: Icon(icon, color: iconColor, size: 20)),
                   ),
-                  child: Icon(
-                    icon,
-                    color: isComingSoon ? AppColors.textMuted : AppColors.primaryDark,
-                    size: 22,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: isComingSoon ? _kMuted : _kNavy,
+                          ),
+                        ),
+                        Text(subtitle,
+                            style: const TextStyle(
+                                fontSize: 12, color: _kMuted)),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
+                  if (isComingSoon)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _kBorder,
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: const Text(
+                        'Soon',
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: isComingSoon ? AppColors.textSecondary : AppColors.textPrimary,
+                          color: _kMuted,
                         ),
                       ),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
+                    ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: isComingSoon ? _kBorder : _kMuted,
+                    size: 20,
                   ),
-                ),
-                if (isComingSoon)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.borderSoft,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Text(
-                      'Coming Soon',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                  )
-                else if (trailingBadge != null)
-                  Container(
-                    margin: const EdgeInsets.only(right: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      trailingBadge!,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: isComingSoon ? AppColors.borderSoft : AppColors.textMuted,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
+}
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) =>
+      const Divider(height: 1, color: _kBorder, indent: 72);
 }

@@ -122,6 +122,7 @@ class VehicleOption {
     required this.tagline,
     required this.startingFare,
     required this.subCategories,
+    this.networkIconUrl,
   });
 
   final int id;
@@ -132,4 +133,7 @@ class VehicleOption {
   final String tagline;
   final String startingFare;
   final List<VehicleSubCategory> subCategories;
+  /// Full URL to the backend-served category icon/image.
+  /// When non-null, UI should prefer this over the [icon] IconData.
+  final String? networkIconUrl;
 }

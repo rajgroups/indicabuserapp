@@ -130,11 +130,25 @@ class VehicleCard extends StatelessWidget {
                           : option.accentColor.withValues(alpha: 0.12),
                     ),
                   ),
-                  child: Icon(
-                    option.icon,
-                    size: compact ? 28 : 32,
-                    color: isSelected ? AppColors.white : option.accentColor,
-                  ),
+                  child: option.networkIconUrl != null && option.networkIconUrl!.isNotEmpty
+                      ? ClipOval(
+                          child: Image.network(
+                            option.networkIconUrl!,
+                            width: compact ? 28 : 32,
+                            height: compact ? 28 : 32,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              option.icon,
+                              size: compact ? 28 : 32,
+                              color: isSelected ? AppColors.white : option.accentColor,
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          option.icon,
+                          size: compact ? 28 : 32,
+                          color: isSelected ? AppColors.white : option.accentColor,
+                        ),
                 ),
                 SizedBox(height: compact ? 10 : 12),
                 Text(

@@ -1,7 +1,9 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/constants/Keys.dart';
 import 'package:indicab/core/models/booking_request.dart';
@@ -41,6 +43,7 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
   late final AnimationController _pulseController;
   late final AnimationController _routeController;
   late final AnimationController _searchController;
+  late final AnimationController _sweepController;
 
   String? _localBookingNo;
   String? _localVehicleType;
@@ -68,6 +71,11 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
       vsync: this,
       duration: const Duration(milliseconds: 3200),
     )..repeat();
+    _sweepController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    )..repeat();
+
 
     // Listen for booking status updates via socket (primary mechanism)
     final socketService = Get.find<SocketService>();
@@ -166,6 +174,28 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     return Icons.local_taxi_rounded;
   }
 
+  LatLng get _pickupLatLng {
+    if (widget.bookingRequest != null &&
+        widget.bookingRequest!.locations.isNotEmpty) {
+      final loc = widget.bookingRequest!.locations.first;
+      return LatLng(loc.latitude, loc.longitude);
+    }
+    if (_bookingData != null) {
+      final lat = double.tryParse(_bookingData!.pickupLatitude?.toString() ?? '');
+      final lng = double.tryParse(_bookingData!.pickupLongitude?.toString() ?? '');
+      if (lat != null && lng != null) {
+        return LatLng(lat, lng);
+      }
+    }
+    if (Get.isRegistered<HomeController>()) {
+      final homeController = Get.find<HomeController>();
+      final loc = homeController.pickuplocation.value ?? homeController.pickupPoint.value;
+      return LatLng(loc.latitude, loc.longitude);
+    }
+    return const LatLng(12.9716, 77.5946);
+  }
+
+
   String _statusLabelFor(String? status) {
     final value = status?.trim().toLowerCase();
     return switch (value) {
@@ -186,8 +216,11 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
   }
 
   void _handleRetry() {
-    // Always create a fresh booking on retry (do not reuse expired booking)
+    // Prefer creating a fresh booking on retry so we do not reuse the same
+    // booking record and accidentally keep the old driver-matching queue alive.
     if (widget.bookingRequest != null) {
+      _clearPendingRideState();
+      _localBookingNo = null;
       _createBookingAndFetch();
     } else if (_bookingNo.isNotEmpty) {
       _retryExistingBooking();
@@ -482,6 +515,8 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
     _pulseController.dispose();
     _routeController.dispose();
     _searchController.dispose();
+    _sweepController.dispose();
+
     final socketService = Get.find<SocketService>();
     socketService.off('booking_status', _onBookingStatusSocket);
     if (_bookingError != null && _bookingNo.isNotEmpty) {
@@ -503,30 +538,26 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
         }
       },
       child: Scaffold(
-      backgroundColor: AppColors.authBackground,
+      backgroundColor: const Color(0xFF1A1A2E),
       body: Stack(
         children: [
-          const Positioned.fill(child: _RideSearchBackdrop()),
           Positioned.fill(
             child: AnimatedBuilder(
               animation: Listenable.merge([
                 _pulseController,
-                _routeController,
-                _searchController,
+                _sweepController,
               ]),
               builder: (context, child) {
-                return CustomPaint(
-                  painter: _RideSearchPainter(
-                    pulseValue: _pulseController.value,
-                    routeValue: _routeController.value,
-                    searchValue: _searchController.value,
-                    vehicleLabel: _vehicleTypeLabel,
-                    vehicleIcon: _vehicleIcon,
-                  ),
+                return _GoogleMapsScanningBackdrop(
+                  pickupLatLng: _pickupLatLng,
+                  sweepProgress: _sweepController.value,
+                  pulseProgress: _pulseController.value,
+                  vehicleIcon: _vehicleIcon,
                 );
               },
             ),
           ),
+
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
@@ -534,26 +565,22 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
                 children: [
                   Row(
                     children: [
-                      InkWell(
-                        onTap: _handleGoBack,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: AppColors.surface.withValues(alpha: 0.96),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x14000000),
-                                blurRadius: 18,
-                                offset: Offset(0, 8),
+                      Material(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          onTap: _handleGoBack,
+                          customBorder: const CircleBorder(),
+                          child: const SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Center(
+                              child: Icon(
+                                Icons.arrow_back_rounded,
+                                color: Colors.white,
+                                size: 22,
                               ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back_rounded,
-                            color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
                       ),
@@ -561,38 +588,35 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
+                            horizontal: 16,
+                            vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.surface.withValues(alpha: 0.96),
-                            borderRadius: BorderRadius.circular(22),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x12000000),
-                                blurRadius: 20,
-                                offset: Offset(0, 8),
-                              ),
-                            ],
+                            color: Colors.white.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.15),
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text(
+                              Text(
                                 'Searching for nearby drivers',
                                 style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary,
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.6),
                                   fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.4,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                               Text(
                                 _statusText,
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  color: AppColors.textPrimary,
+                                  fontSize: 15,
+                                  color: Colors.white,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -628,64 +652,356 @@ class _FindingDriverScreenState extends State<FindingDriverScreen>
   }
 }
 
-class _RideSearchBackdrop extends StatelessWidget {
-  const _RideSearchBackdrop();
+const String _darkMapStyleJson = '''
+[
+  {"elementType":"geometry","stylers":[{"color":"#101524"}]},
+  {"elementType":"labels.icon","stylers":[{"visibility":"off"}]},
+  {"elementType":"labels.text.fill","stylers":[{"color":"#525A70"}]},
+  {"elementType":"labels.text.stroke","stylers":[{"color":"#101524"}]},
+  {"featureType":"administrative","elementType":"geometry","stylers":[{"color":"#2A344D"}]},
+  {"featureType":"administrative.country","elementType":"labels.text.fill","stylers":[{"color":"#7A869E"}]},
+  {"featureType":"administrative.locality","elementType":"labels.text.fill","stylers":[{"color":"#9EA9BD"}]},
+  {"featureType":"poi","elementType":"labels.text.fill","stylers":[{"color":"#525A70"}]},
+  {"featureType":"poi.park","elementType":"geometry","stylers":[{"color":"#141E33"}]},
+  {"featureType":"road","elementType":"geometry.fill","stylers":[{"color":"#1E273B"}]},
+  {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#687590"}]},
+  {"featureType":"road.arterial","elementType":"geometry","stylers":[{"color":"#26324A"}]},
+  {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#00C853","weight":1.2},{"lightness":-45}]},
+  {"featureType":"transit","elementType":"labels.text.fill","stylers":[{"color":"#525A70"}]},
+  {"featureType":"water","elementType":"geometry","stylers":[{"color":"#0A0E1A"}]}
+]
+''';
+
+class _GoogleMapsScanningBackdrop extends StatelessWidget {
+  final LatLng pickupLatLng;
+  final double sweepProgress;
+  final double pulseProgress;
+  final IconData vehicleIcon;
+
+  const _GoogleMapsScanningBackdrop({
+    required this.pickupLatLng,
+    required this.sweepProgress,
+    required this.pulseProgress,
+    required this.vehicleIcon,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFF9F7F1), Color(0xFFF4F0E5), Color(0xFFECE3CF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return Stack(
+      children: [
+        // 1. Google Maps Base Layer with Dark Map Style
+        Positioned.fill(
+          child: GoogleMap(
+            style: _darkMapStyleJson,
+            initialCameraPosition: CameraPosition(
+              target: pickupLatLng,
+              zoom: 15.2,
+            ),
+            zoomControlsEnabled: false,
+            myLocationButtonEnabled: false,
+            compassEnabled: false,
+            mapToolbarEnabled: false,
+            rotateGesturesEnabled: false,
+            tiltGesturesEnabled: false,
+            scrollGesturesEnabled: false,
+            zoomGesturesEnabled: false,
+          ),
         ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -54,
-            left: -42,
-            child: _GlowBlob(
-              size: 180,
-              color: AppColors.primary.withValues(alpha: 0.16),
+
+        // 2. Dark Radial Vignette overlay to seamlessly blend map edges
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0, -0.1),
+                radius: 1.15,
+                colors: [
+                  const Color(0xFF1A1A2E).withValues(alpha: 0.20),
+                  const Color(0xFF1A1A2E).withValues(alpha: 0.65),
+                  const Color(0xFF1A1A2E).withValues(alpha: 0.95),
+                ],
+                stops: const [0.0, 0.65, 1.0],
+              ),
             ),
           ),
-          Positioned(
-            top: 110,
-            right: -44,
-            child: _GlowBlob(
-              size: 150,
-              color: Colors.white.withValues(alpha: 0.7),
+        ),
+
+        // 3. Dynamic Google Maps Radar Scanning Layer
+        Positioned.fill(
+          child: CustomPaint(
+            painter: _GoogleMapsRadarPainter(
+              sweepAngle: sweepProgress * math.pi * 2,
+              pulseProgress: pulseProgress,
+              vehicleIcon: vehicleIcon,
             ),
           ),
-          Positioned(
-            bottom: -48,
-            left: 26,
-            child: _GlowBlob(
-              size: 220,
-              color: AppColors.primaryLight.withValues(alpha: 0.18),
+        ),
+
+        // 4. Radar Status Badge
+        Positioned(
+          top: 96,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A2E).withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(99),
+                border: Border.all(
+                  color: const Color(0xFF00C853).withValues(alpha: 0.40),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00C853).withValues(alpha: 0.25),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00C853),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00C853).withValues(alpha: 0.8),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'LIVE RADAR SCANNING • 3KM RADIUS',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF00C853).withValues(alpha: 0.95),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _GlowBlob extends StatelessWidget {
-  const _GlowBlob({required this.size, required this.color});
+class _GoogleMapsRadarPainter extends CustomPainter {
+  final double sweepAngle;
+  final double pulseProgress;
+  final IconData vehicleIcon;
 
-  final double size;
-  final Color color;
+  _GoogleMapsRadarPainter({
+    required this.sweepAngle,
+    required this.pulseProgress,
+    required this.vehicleIcon,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width * 0.5, size.height * 0.40);
+    final maxRadius = math.min(size.width, size.height) * 0.44;
+
+    // 1. Concentric radar grid rings & crosshairs
+    final gridPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = const Color(0xFF00C853).withValues(alpha: 0.16)
+      ..strokeWidth = 1.0;
+
+    for (var i = 1; i <= 4; i++) {
+      final r = maxRadius * (i / 4);
+      canvas.drawCircle(center, r, gridPaint);
+    }
+
+    // Crosshair axes
+    canvas.drawLine(
+      Offset(center.dx - maxRadius * 1.08, center.dy),
+      Offset(center.dx + maxRadius * 1.08, center.dy),
+      gridPaint,
     );
+    canvas.drawLine(
+      Offset(center.dx, center.dy - maxRadius * 1.08),
+      Offset(center.dx, center.dy + maxRadius * 1.08),
+      gridPaint,
+    );
+
+    // Cardinal compass markers (N, S, E, W)
+    _drawText(canvas, 'N', Offset(center.dx - 4, center.dy - maxRadius - 16), const Color(0xFF00C853), 10, FontWeight.w900);
+    _drawText(canvas, 'S', Offset(center.dx - 4, center.dy + maxRadius + 4), const Color(0xFF00C853), 10, FontWeight.w900);
+    _drawText(canvas, 'E', Offset(center.dx + maxRadius + 6, center.dy - 7), const Color(0xFF00C853), 10, FontWeight.w900);
+    _drawText(canvas, 'W', Offset(center.dx - maxRadius - 16, center.dy - 7), const Color(0xFF00C853), 10, FontWeight.w900);
+
+    // Distance ring labels
+    _drawText(canvas, '250m', Offset(center.dx + maxRadius * 0.25 + 4, center.dy - 12), const Color(0xFF00C853).withValues(alpha: 0.5), 9, FontWeight.w700);
+    _drawText(canvas, '500m', Offset(center.dx + maxRadius * 0.50 + 4, center.dy - 12), const Color(0xFF00C853).withValues(alpha: 0.5), 9, FontWeight.w700);
+    _drawText(canvas, '1km', Offset(center.dx + maxRadius * 0.75 + 4, center.dy - 12), const Color(0xFF00C853).withValues(alpha: 0.5), 9, FontWeight.w700);
+
+    // 2. Concentric expanding sonar pulse rings
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    for (var i = 0; i < 3; i++) {
+      final p = (pulseProgress + i * 0.33) % 1.0;
+      final r = maxRadius * p;
+      final alpha = (1.0 - p).clamp(0.0, 1.0) * 0.38;
+      ringPaint.color = const Color(0xFF00C853).withValues(alpha: alpha);
+      canvas.drawCircle(center, r, ringPaint);
+    }
+
+    // 3. 360° Rotating Radar Sweep Arc
+    final sweepPath = Path()
+      ..moveTo(center.dx, center.dy)
+      ..arcTo(
+        Rect.fromCircle(center: center, radius: maxRadius),
+        sweepAngle - math.pi / 3.5,
+        math.pi / 3.5,
+        false,
+      )
+      ..close();
+
+    final sweepShader = ui.Gradient.sweep(
+      center,
+      [
+        Colors.transparent,
+        const Color(0xFF00C853).withValues(alpha: 0.04),
+        const Color(0xFF00C853).withValues(alpha: 0.18),
+        const Color(0xFF00C853).withValues(alpha: 0.42),
+      ],
+      [0.0, 0.65, 0.88, 1.0],
+      TileMode.clamp,
+      sweepAngle - math.pi / 3.5,
+      sweepAngle,
+    );
+
+    canvas.drawPath(sweepPath, Paint()..shader = sweepShader);
+
+    // Sweep leading edge beam line
+    final edgeX = center.dx + maxRadius * math.cos(sweepAngle);
+    final edgeY = center.dy + maxRadius * math.sin(sweepAngle);
+    canvas.drawLine(
+      center,
+      Offset(edgeX, edgeY),
+      Paint()
+        ..color = const Color(0xFF00FF66)
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 2.5),
+    );
+
+    // 4. Scanning Nearby Driver Blips
+    final driverOffsets = [
+      Offset(maxRadius * 0.42, -maxRadius * 0.36),
+      Offset(-maxRadius * 0.54, maxRadius * 0.26),
+      Offset(maxRadius * 0.28, maxRadius * 0.56),
+      Offset(-maxRadius * 0.42, -maxRadius * 0.46),
+      Offset(maxRadius * 0.64, -maxRadius * 0.14),
+      Offset(-maxRadius * 0.24, maxRadius * 0.66),
+    ];
+
+    for (var i = 0; i < driverOffsets.length; i++) {
+      final pos = center + driverOffsets[i];
+      final angleToBlip = math.atan2(driverOffsets[i].dy, driverOffsets[i].dx);
+      var diff = (sweepAngle - angleToBlip) % (2 * math.pi);
+      if (diff < 0) diff += 2 * math.pi;
+
+      final isHit = diff < math.pi / 3.5;
+      final intensity = isHit ? (1.0 - diff / (math.pi / 3.5)) : 0.0;
+
+      // Glow when radar sweeps over blip
+      if (isHit) {
+        canvas.drawCircle(
+          pos,
+          14 + intensity * 8,
+          Paint()
+            ..color = const Color(0xFF00C853).withValues(alpha: intensity * 0.30)
+            ..style = PaintingStyle.fill,
+        );
+        canvas.drawCircle(
+          pos,
+          10 + intensity * 5,
+          Paint()
+            ..color = const Color(0xFF00FF66).withValues(alpha: intensity * 0.65)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4,
+        );
+      }
+
+      // Center blip dot
+      canvas.drawCircle(
+        pos,
+        4.5 + intensity * 2,
+        Paint()
+          ..color = Color.lerp(
+            const Color(0xFF00C853).withValues(alpha: 0.45),
+            const Color(0xFF00FF66),
+            intensity,
+          )!,
+      );
+    }
+
+    // 5. Center Pickup Location Pin Marker
+    canvas.drawCircle(
+      center,
+      22 + math.sin(pulseProgress * math.pi * 2) * 3.5,
+      Paint()..color = const Color(0xFF00C853).withValues(alpha: 0.20),
+    );
+    canvas.drawCircle(
+      center,
+      13,
+      Paint()
+        ..color = Colors.white
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5),
+    );
+    canvas.drawCircle(
+      center,
+      11,
+      Paint()..color = const Color(0xFF1A1A2E),
+    );
+    canvas.drawCircle(
+      center,
+      6.5,
+      Paint()..color = const Color(0xFF00C853),
+    );
+  }
+
+  void _drawText(
+    Canvas canvas,
+    String text,
+    Offset offset,
+    Color color,
+    double fontSize,
+    FontWeight fontWeight,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          color: color,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(canvas, offset);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GoogleMapsRadarPainter oldDelegate) {
+    return oldDelegate.sweepAngle != sweepAngle ||
+        oldDelegate.pulseProgress != pulseProgress;
   }
 }
 
@@ -795,18 +1111,56 @@ class _SearchCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
+
+          // ── Rapido-style animated loading bar ──────────────────
+          if (bookingError == null) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                minHeight: 4,
+                backgroundColor: const Color(0xFFEEEFF3),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Color.lerp(
+                    const Color(0xFF00C853),
+                    const Color(0xFF1A1A2E),
+                    (search * 0.4).clamp(0.0, 1.0),
+                  )!,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Step indicators (like Rapido's booking steps)
+            Row(
+              children: [
+                _StepDot(active: true, label: 'Placed'),
+                _StepLine(animate: search),
+                _StepDot(
+                  active: !isCreatingBooking && bookingNo.isNotEmpty,
+                  label: 'Matching',
+                ),
+                _StepLine(animate: route),
+                _StepDot(
+                  active: bookingData?.driverName?.trim().isNotEmpty == true,
+                  label: 'Driver',
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ] else
+            const SizedBox(height: 10),
           Text(
             bookingError != null
                 ? 'Booking Failed'
                 : isCreatingBooking
-                    ? 'Requesting ride...'
-                    : 'Finding your ride',
+                    ? 'Requesting your ride...'
+                    : 'Searching nearby drivers',
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
+              color: Color(0xFF1A1A2E),
             ),
           ),
           const SizedBox(height: 8),
@@ -816,55 +1170,78 @@ class _SearchCard extends StatelessWidget {
                     ? bookingError!.replaceAll('Exception: ', '')
                     : bookingError!)
                 : isCreatingBooking
-                    ? 'Connecting to servers and sending your request...'
-                    : 'We are matching your $vehicleType with the nearest available driver.',
+                    ? 'Connecting and sending your request...'
+                    : 'We are matching your $vehicleType with the nearest driver.',
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
+              fontSize: 13,
+              color: Color(0xFFB0B3C1),
               height: 1.5,
             ),
           ),
           if (bookingNo.isNotEmpty) ...[
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: AppColors.inputFill,
-                borderRadius: BorderRadius.circular(18),
+                color: const Color(0xFF1A1A2E).withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFEEEFF3)),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  const Text(
-                    'Booking number',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
+                  const Icon(
+                    Icons.confirmation_number_rounded,
+                    size: 16,
+                    color: Color(0xFF00C853),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Booking Number',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFFB0B3C1),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          '#$bookingNo',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF1A1A2E),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    bookingNo,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w800,
+                  if (bookingData?.driverName?.trim().isNotEmpty == true)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text(
+                          'Assigned to',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFFB0B3C1),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          bookingData!.driverName!.trim(),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF1A1A2E),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  if (bookingData?.driverName?.trim().isNotEmpty == true) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      'Assigned to ${bookingData!.driverName!.trim()}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -876,17 +1253,17 @@ class _SearchCard extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onRetry,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: const Color(0xFF00C853),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   elevation: 0,
                 ),
                 child: const Text(
                   'Retry Booking',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                 ),
               ),
             ),
@@ -956,8 +1333,8 @@ class _MovingCab extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppColors.primary.withValues(alpha: 0.12),
-                  AppColors.primaryLight.withValues(alpha: 0.52),
+                  const Color(0xFF00C853).withValues(alpha: 0.14),
+                  const Color(0xFF00C853).withValues(alpha: 0.06),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -967,7 +1344,7 @@ class _MovingCab extends StatelessWidget {
           ),
           Transform.rotate(
             angle: math.sin(route * math.pi * 2) * 0.04,
-            child: Icon(vehicleIcon, size: 40, color: AppColors.primaryDark),
+            child: Icon(vehicleIcon, size: 40, color: const Color(0xFF00C853)),
           ),
           Positioned(
             top: 14,
@@ -1155,111 +1532,69 @@ class _MapPulsePainter extends CustomPainter {
   }
 }
 
-class _RideSearchPainter extends CustomPainter {
-  _RideSearchPainter({
-    required this.pulseValue,
-    required this.routeValue,
-    required this.searchValue,
-    required this.vehicleLabel,
-    required this.vehicleIcon,
-  });
-
-  final double pulseValue;
-  final double routeValue;
-  final double searchValue;
-  final String vehicleLabel;
-  final IconData vehicleIcon;
+// ── Rapido-style booking step dot ─────────────────────────────────────────────
+class _StepDot extends StatelessWidget {
+  final bool active;
+  final String label;
+  const _StepDot({required this.active, required this.label});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final roadPaint = Paint()
-      ..color = AppColors.border.withValues(alpha: 0.22)
-      ..strokeWidth = 1;
-
-    const gridSpacing = 42.0;
-    for (double x = 0; x < size.width; x += gridSpacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), roadPaint);
-    }
-    for (double y = 0; y < size.height; y += gridSpacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), roadPaint);
-    }
-
-    final route = Path()
-      ..moveTo(size.width * 0.12, size.height * 0.7)
-      ..cubicTo(
-        size.width * 0.28,
-        size.height * 0.52,
-        size.width * 0.54,
-        size.height * 0.84,
-        size.width * 0.88,
-        size.height * 0.36,
-      );
-
-    final haloPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..color = Colors.white.withValues(alpha: 0.72)
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPath(route, haloPaint);
-
-    final streakPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round
-      ..shader = LinearGradient(
-        colors: [
-          Colors.transparent,
-          AppColors.primary.withValues(alpha: 0.2),
-          AppColors.primaryDark.withValues(alpha: 0.5),
-          AppColors.primary.withValues(alpha: 0.18),
-          Colors.transparent,
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            width: active ? 14 : 10,
+            height: active ? 14 : 10,
+            decoration: BoxDecoration(
+              color: active ? const Color(0xFF00C853) : const Color(0xFFEEEFF3),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: active ? const Color(0xFF00C853) : const Color(0xFFCDD0D8),
+                width: 1.5,
+              ),
+              boxShadow: active
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF00C853).withValues(alpha: 0.40),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : [],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: active ? const Color(0xFF1A1A2E) : const Color(0xFFB0B3C1),
+            ),
+          ),
         ],
-        stops: const [0.0, 0.35, 0.5, 0.65, 1.0],
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+      );
+}
 
-    final streakWidth = size.width * 0.34;
-    final streakLeft =
-        -streakWidth + (size.width + streakWidth * 2) * routeValue;
-    canvas.save();
-    canvas.clipPath(route);
-    canvas.drawRect(
-      Rect.fromLTWH(streakLeft, size.height * 0.56, streakWidth, 6),
-      streakPaint,
-    );
-    canvas.restore();
-
-    final pulsePaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = AppColors.primary.withValues(alpha: 0.14);
-    canvas.drawCircle(
-      Offset(size.width * 0.5, size.height * 0.6),
-      88 + math.sin(pulseValue * math.pi * 2) * 8,
-      pulsePaint,
-    );
-
-    final labelPainter = TextPainter(
-      text: TextSpan(
-        text: 'Searching $vehicleLabel',
-        style: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.0,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: size.width * 0.8);
-    labelPainter.paint(canvas, Offset(size.width * 0.08, size.height * 0.08));
-  }
+// ── Animated step connector line ──────────────────────────────────────────────
+class _StepLine extends StatelessWidget {
+  final double animate;
+  const _StepLine({required this.animate});
 
   @override
-  bool shouldRepaint(covariant _RideSearchPainter oldDelegate) {
-    return oldDelegate.pulseValue != pulseValue ||
-        oldDelegate.routeValue != routeValue ||
-        oldDelegate.searchValue != searchValue ||
-        oldDelegate.vehicleLabel != vehicleLabel ||
-        oldDelegate.vehicleIcon != vehicleIcon;
-  }
+  Widget build(BuildContext context) => Expanded(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              minHeight: 3,
+              value: animate.clamp(0.0, 1.0),
+              backgroundColor: const Color(0xFFEEEFF3),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00C853)),
+            ),
+          ),
+        ),
+      );
 }

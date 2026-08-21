@@ -82,6 +82,7 @@ class VehicleDetailsSheet extends StatelessWidget {
                             accentColor: option.accentColor,
                             subCategory: subCategory,
                             icon: option.icon,
+                            networkIconUrl: option.networkIconUrl,
                             hasDropLocation: hasDropLocation,
                             distanceKm: distanceKm,
                             onTap: () => onSelect(subCategory),
@@ -131,11 +132,25 @@ class _SheetHeader extends StatelessWidget {
               color: option.accentColor,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: Icon(
-              option.icon,
-              color: AppColors.white,
-              size: compact ? 28 : 32,
-            ),
+            child: option.networkIconUrl != null && option.networkIconUrl!.isNotEmpty
+                ? ClipOval(
+                    child: Image.network(
+                      option.networkIconUrl!,
+                      width: compact ? 28 : 32,
+                      height: compact ? 28 : 32,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        option.icon,
+                        color: AppColors.white,
+                        size: compact ? 28 : 32,
+                      ),
+                    ),
+                  )
+                : Icon(
+                    option.icon,
+                    color: AppColors.white,
+                    size: compact ? 28 : 32,
+                  ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -175,6 +190,7 @@ class SubCategoryCard extends StatelessWidget {
     required this.icon,
     required this.accentColor,
     required this.onTap,
+    this.networkIconUrl,
     this.onMapTap,
     this.hasDropLocation = false,
     this.distanceKm = 0.0,
@@ -182,6 +198,7 @@ class SubCategoryCard extends StatelessWidget {
 
   final VehicleSubCategory subCategory;
   final IconData icon;
+  final String? networkIconUrl;
   final Color accentColor;
   final VoidCallback onTap;
   final VoidCallback? onMapTap;
@@ -221,7 +238,17 @@ class SubCategoryCard extends StatelessWidget {
                       color: accentColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(18),
                     ),
-                    child: Icon(icon, color: accentColor),
+                    child: networkIconUrl != null && networkIconUrl!.isNotEmpty
+                        ? ClipOval(
+                            child: Image.network(
+                              networkIconUrl!,
+                              width: compact ? 26 : 32,
+                              height: compact ? 26 : 32,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Icon(icon, color: accentColor),
+                            ),
+                          )
+                        : Icon(icon, color: accentColor),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

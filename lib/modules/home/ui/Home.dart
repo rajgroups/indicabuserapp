@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/controller/BookingController.dart';
 import 'package:indicab/core/routes/names.dart';
+import 'package:indicab/core/utils/Helpers.dart';
 import 'package:get/get.dart';
 import 'package:indicab/layout/app.dart';
 import 'package:indicab/modules/vehicle/nearby.dart';
@@ -88,7 +89,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               const SizedBox(height: 16),
                               Obx(() {
                                 final activeRide = controller.activeRide.value;
-                                if (activeRide == null) {
+                                final status = activeRide?.status?.trim().toLowerCase();
+
+                                if (activeRide == null ||
+                                    status == 'completed' ||
+                                    status == 'cancelled') {
                                   return const SizedBox.shrink();
                                 }
 
@@ -262,51 +267,31 @@ class _HomeScreenState extends State<HomeScreen> {
                                     icon: Icons.local_offer_rounded,
                                     label: 'Offers',
                                     color: const Color(0xFFFF6B35),
-                                    onTap: () => Get.snackbar(
-                                      'Offers',
-                                      'Exciting offers coming soon!',
-                                      backgroundColor: AppColors.surface,
-                                    ),
+                                    onTap: () => Helpers.showComingSoon('Offers'),
                                   ),
                                   _EssentialGridItem(
                                     icon: Icons.schedule_rounded,
                                     label: 'Schedule',
                                     color: const Color(0xFF00B4D8),
-                                    onTap: () => Get.snackbar(
-                                      'Schedule',
-                                      'Schedule a ride from the booking page.',
-                                      backgroundColor: AppColors.surface,
-                                    ),
+                                    onTap: () => Helpers.showComingSoon('Schedule Ride'),
                                   ),
                                   _EssentialGridItem(
                                     icon: Icons.support_agent_rounded,
                                     label: 'Support',
                                     color: const Color(0xFF2ECC71),
-                                    onTap: () => Get.snackbar(
-                                      'Support',
-                                      'Customer support coming soon!',
-                                      backgroundColor: AppColors.surface,
-                                    ),
+                                    onTap: () => Helpers.showComingSoon('Customer Support'),
                                   ),
                                   _EssentialGridItem(
                                     icon: Icons.card_giftcard_rounded,
                                     label: 'Rewards',
                                     color: const Color(0xFFFFCC00),
-                                    onTap: () => Get.snackbar(
-                                      'Rewards',
-                                      'Loyalty rewards coming soon!',
-                                      backgroundColor: AppColors.surface,
-                                    ),
+                                    onTap: () => Helpers.showComingSoon('Rewards & Loyalty'),
                                   ),
                                   _EssentialGridItem(
                                     icon: Icons.location_on_rounded,
                                     label: 'Saved',
                                     color: const Color(0xFFE91E63),
-                                    onTap: () => Get.snackbar(
-                                      'Saved Places',
-                                      'Manage your saved places.',
-                                      backgroundColor: AppColors.surface,
-                                    ),
+                                    onTap: () => Helpers.showComingSoon('Saved Places'),
                                   ),
                                   _EssentialGridItem(
                                     icon: Icons.receipt_long_rounded,
@@ -319,11 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     icon: Icons.share_rounded,
                                     label: 'Refer',
                                     color: const Color(0xFF9C27B0),
-                                    onTap: () => Get.snackbar(
-                                      'Refer & Earn',
-                                      'Referral program coming soon!',
-                                      backgroundColor: AppColors.surface,
-                                    ),
+                                    onTap: () => Helpers.showComingSoon('Refer & Earn'),
                                   ),
                                 ],
                               ),
@@ -348,31 +329,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                     icon: Icons.home_rounded,
                                     label: 'Home',
                                     color: const Color(0xFF2196F3),
-                                    onTap: () => Get.snackbar(
-                                      'Home',
-                                      'Set your home address to quick book.',
-                                      backgroundColor: AppColors.surface,
-                                    ),
+                                    onTap: () => Helpers.showComingSoon('Saved Home Location'),
                                   ),
                                   _EssentialGridItem(
                                     icon: Icons.work_rounded,
                                     label: 'Work',
                                     color: const Color(0xFF607D8B),
-                                    onTap: () => Get.snackbar(
-                                      'Work',
-                                      'Set your work address to quick book.',
-                                      backgroundColor: AppColors.surface,
-                                    ),
+                                    onTap: () => Helpers.showComingSoon('Saved Work Location'),
                                   ),
                                   _EssentialGridItem(
                                     icon: Icons.flight_rounded,
                                     label: 'Airport',
                                     color: const Color(0xFF00BCD4),
-                                    onTap: () => Get.snackbar(
-                                      'Airport',
-                                      'Book a ride to the airport.',
-                                      backgroundColor: AppColors.surface,
-                                    ),
+                                    onTap: () => Helpers.showComingSoon('Airport Rides'),
                                   ),
                                   _EssentialGridItem(
                                     icon: Icons.add_location_alt_rounded,

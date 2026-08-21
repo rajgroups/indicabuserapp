@@ -1,4 +1,4 @@
-import 'package:get/get_rx/src/rx_typedefs/rx_typedefs.dart';
+import 'package:flutter/material.dart';
 import 'package:quickalert/quickalert.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/routes/names.dart';
@@ -61,6 +61,20 @@ class Helpers {
       type: QuickAlertType.loading,
       text: "Please wait...",
       barrierDismissible: false,
+    );
+  }
+
+  static void showComingSoon(String featureTitle, {String? customText}) {
+    final context = Get.context;
+    if (context == null) return;
+
+    QuickAlert.show(
+      context: context,
+      type: QuickAlertType.info,
+      title: '$featureTitle',
+      text: customText ?? 'The $featureTitle feature is coming soon in our upcoming update!',
+      confirmBtnText: 'Got it!',
+      confirmBtnColor: const Color(0xFF00C853),
     );
   }
 

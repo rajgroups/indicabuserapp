@@ -40,6 +40,8 @@ class ApiVehicleType {
   final String tagline;
   final String startingFare;
   final String? description;
+  final String? iconUrl;
+  final String? imageUrl;
   final List<ApiSubCategory> subCategories;
 
   ApiVehicleType({
@@ -53,6 +55,8 @@ class ApiVehicleType {
     required this.tagline,
     required this.startingFare,
     this.description,
+    this.iconUrl,
+    this.imageUrl,
     required this.subCategories,
   });
 
@@ -69,6 +73,8 @@ class ApiVehicleType {
       tagline: json['tagline'] ?? '',
       startingFare: json['starting_fare'] ?? '',
       description: json['description'],
+      iconUrl: json['icon_url']?.toString(),
+      imageUrl: json['image_url']?.toString(),
       subCategories: (json['sub_categories'] as List<dynamic>?)
               ?.map((e) => ApiSubCategory.fromJson(e))
               .toList() ??

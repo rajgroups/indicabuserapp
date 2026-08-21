@@ -18,7 +18,7 @@ class SocketService extends GetxService with WidgetsBindingObserver {
   bool _shouldReconnect = true;
 
   /// Base URL for the WebSocket connection.
-  final String _baseUrl = 'ws://10.245.156.83:9502';
+  final String _baseUrl = 'ws://10.72.154.83:9502';
 
   /// Reactive flag to observe connection status across the app.
   final RxBool isConnected = false.obs;

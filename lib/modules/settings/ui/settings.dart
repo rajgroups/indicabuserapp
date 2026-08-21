@@ -1,7 +1,12 @@
-// Settings Screen
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:indicab/core/constants/Colors.dart';
+
+const _kNavy   = Color(0xFF1A1A2E);
+const _kGreen  = Color(0xFF00C853);
+const _kRed    = Color(0xFFE53935);
+const _kBg     = Color(0xFFF5F6FA);
+const _kBorder = Color(0xFFEEEFF3);
+const _kMuted  = Color(0xFFB0B3C1);
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,96 +22,384 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top;
+
     return Scaffold(
-      backgroundColor: AppColors.authBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
-          onPressed: Get.back,
-        ),
-        title: const Text(
-          'Settings',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        physics: const BouncingScrollPhysics(),
+      backgroundColor: _kBg,
+      body: Column(
         children: [
-          _buildSectionHeader('Preferences'),
-          _buildSwitchTile('Push Notifications', 'Updates about your rides', pushNotifications, (v) => setState(() => pushNotifications = v)),
-          _buildSwitchTile('Promotional Emails', 'Offers and discounts', promoEmails, (v) => setState(() => promoEmails = v)),
-          _buildSwitchTile('Location Tracking', 'Improve pickup accuracy', locationTracking, (v) => setState(() => locationTracking = v)),
-          
-          const SizedBox(height: 24),
-          _buildSectionHeader('Account'),
-          _buildListTile(Icons.lock_rounded, 'Change Password', 'Update your security credentials'),
-          _buildListTile(Icons.language_rounded, 'Language', 'English (US)'),
-          _buildListTile(Icons.privacy_tip_rounded, 'Privacy Policy', 'Review our privacy rules'),
-          
-          const SizedBox(height: 24),
-          _buildSectionHeader('Danger Zone'),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), shape: BoxShape.circle),
-              child: const Icon(Icons.delete_forever_rounded, color: Colors.red, size: 20),
+          // ── Rapido-style top bar ──────────────────────────────────────
+          Container(
+            padding: EdgeInsets.fromLTRB(16, topPad + 10, 16, 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(20),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            title: const Text('Delete Account', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.red)),
-            subtitle: const Text('Permanently remove your data', style: TextStyle(fontSize: 12, color: Colors.redAccent)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-            onTap: () {
-              Get.snackbar('Warning', 'Account deletion requires verification.', backgroundColor: AppColors.surface, colorText: Colors.red);
-            },
+            child: Row(
+              children: [
+                _CircleBtn(icon: Icons.arrow_back_rounded, onTap: Get.back),
+                const SizedBox(width: 12),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Settings',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: _kNavy,
+                      ),
+                    ),
+                    Text(
+                      'Manage your preferences',
+                      style: TextStyle(fontSize: 12, color: _kMuted),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // ── Settings list ─────────────────────────────────────────────
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+              physics: const BouncingScrollPhysics(),
+              children: [
+                // Preferences
+                _SectionHeader(label: 'Preferences'),
+                const SizedBox(height: 8),
+                _SettingsCard(children: [
+                  _SwitchRow(
+                    icon: Icons.notifications_rounded,
+                    iconColor: _kNavy,
+                    title: 'Push Notifications',
+                    subtitle: 'Updates about your rides',
+                    value: pushNotifications,
+                    onChanged: (v) => setState(() => pushNotifications = v),
+                  ),
+                  _CardDivider(),
+                  _SwitchRow(
+                    icon: Icons.mail_rounded,
+                    iconColor: const Color(0xFF6C63FF),
+                    title: 'Promotional Emails',
+                    subtitle: 'Offers and discounts',
+                    value: promoEmails,
+                    onChanged: (v) => setState(() => promoEmails = v),
+                  ),
+                  _CardDivider(),
+                  _SwitchRow(
+                    icon: Icons.location_on_rounded,
+                    iconColor: _kGreen,
+                    title: 'Location Tracking',
+                    subtitle: 'Improve pickup accuracy',
+                    value: locationTracking,
+                    onChanged: (v) => setState(() => locationTracking = v),
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+
+                // Account
+                _SectionHeader(label: 'Account'),
+                const SizedBox(height: 8),
+                _SettingsCard(children: [
+                  _TileRow(
+                    icon: Icons.lock_rounded,
+                    iconColor: const Color(0xFF00B4D8),
+                    title: 'Change Password',
+                    subtitle: 'Update security credentials',
+                    onTap: () => Get.snackbar('Change Password', 'Navigate to change password.'),
+                  ),
+                  _CardDivider(),
+                  _TileRow(
+                    icon: Icons.language_rounded,
+                    iconColor: const Color(0xFF9C27B0),
+                    title: 'Language',
+                    subtitle: 'English (IN)',
+                    onTap: () => Get.snackbar('Language', 'Change app language.'),
+                  ),
+                  _CardDivider(),
+                  _TileRow(
+                    icon: Icons.privacy_tip_rounded,
+                    iconColor: _kNavy,
+                    title: 'Privacy Policy',
+                    subtitle: 'Review our privacy rules',
+                    onTap: () => Get.snackbar('Privacy', 'Navigating to privacy policy.'),
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+
+                // Danger zone
+                _SectionHeader(label: 'Danger Zone'),
+                const SizedBox(height: 8),
+                Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  child: InkWell(
+                    onTap: () => Get.snackbar(
+                      'Warning',
+                      'Account deletion requires verification.',
+                      colorText: _kRed,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border:
+                            Border.all(color: _kRed.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: _kRed.withValues(alpha: 0.10),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.delete_forever_rounded,
+                                color: _kRed,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Delete Account',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: _kRed,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Permanently remove your data',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: _kRed,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: _kRed,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.primaryDark),
-      ),
-    );
-  }
+// ─── Sub-widgets ──────────────────────────────────────────────────────────────
 
-  Widget _buildSwitchTile(String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
-    return SwitchListTile(
-      value: value,
-      onChanged: onChanged,
-      activeColor: AppColors.surface,
-      activeTrackColor: AppColors.textPrimary,
-      title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-    );
-  }
+class _CircleBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _CircleBtn({required this.icon, required this.onTap});
 
-  Widget _buildListTile(IconData icon, String title, String subtitle) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: AppColors.inputFill, shape: BoxShape.circle),
-        child: Icon(icon, color: AppColors.primaryDark, size: 20),
-      ),
-      title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-      trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-      onTap: () {
-        Get.snackbar(title, 'Navigating to $title settings...', backgroundColor: AppColors.surface);
-      },
-    );
-  }
+  @override
+  Widget build(BuildContext context) => Material(
+        color: const Color(0xFFF3F4F6),
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Center(child: Icon(icon, size: 20, color: _kNavy)),
+          ),
+        ),
+      );
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  const _SectionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) => Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: _kGreen,
+          letterSpacing: 0.8,
+        ),
+      );
+}
+
+class _SettingsCard extends StatelessWidget {
+  final List<Widget> children;
+  const _SettingsCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(children: children),
+      );
+}
+
+class _CardDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) =>
+      const Divider(height: 1, color: _kBorder, indent: 70);
+}
+
+class _SwitchRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _SwitchRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Center(child: Icon(icon, color: iconColor, size: 20)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _kNavy)),
+                  Text(subtitle,
+                      style: const TextStyle(fontSize: 12, color: _kMuted)),
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: Colors.white,
+              activeTrackColor: _kNavy,
+              inactiveThumbColor: Colors.white,
+              inactiveTrackColor: _kBorder,
+            ),
+          ],
+        ),
+      );
+}
+
+class _TileRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _TileRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(child: Icon(icon, color: iconColor, size: 20)),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: _kNavy)),
+                      Text(subtitle,
+                          style: const TextStyle(fontSize: 12, color: _kMuted)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded,
+                    color: _kMuted, size: 20),
+              ],
+            ),
+          ),
+        ),
+      );
 }

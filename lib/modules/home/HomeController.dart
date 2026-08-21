@@ -884,18 +884,45 @@ class HomeController extends GetxController {
     try {
       final token = await _readStoredToken();
       if (token == null || token.isEmpty) {
+        activeRide.value = null;
         return;
       }
 
       final response = await _bookingRepository.getActiveRide();
       final booking = response.data;
 
-      activeRide.value = booking;
-
       if (booking == null) {
-        _restorePendingRideFromStorage();
+        // The backend has no active ride for this user, so local pending-ride
+        // state is stale and should not force the app back into the ride flow.
+        _clearPendingRideState();
+        activeRide.value = null;
         return;
       }
+
+      final status = booking.status?.trim().toLowerCase();
+
+      // Non-active statuses: no_driver_available, expired, completed, cancelled
+      if (status == 'no_driver_available' ||
+          status == 'expired' ||
+          status == 'completed' ||
+          status == 'cancelled') {
+        _clearPendingRideState();
+        activeRide.value = null;
+
+        final arguments = Get.arguments;
+        final fromActiveRide = arguments is Map && arguments['from_active_ride'] == true;
+
+        if (status == 'completed' && !fromActiveRide) {
+          final bookingArgs = <String, dynamic>{
+            'booking_no': booking.bookingNo,
+            'booking_data': booking,
+          };
+          _redirectToRide(RouteNames.rideSummary, bookingArgs);
+        }
+        return;
+      }
+
+      activeRide.value = booking;
 
       await _socketService.ensureConnected();
 
@@ -906,11 +933,8 @@ class HomeController extends GetxController {
         return;
       }
 
-      final status = booking.status?.trim().toLowerCase();
-
-      if (status == 'pending' ||
-          status == 'no_driver_available' ||
-          status == 'expired') {
+      // ONLY 'pending' or 'requested' status should redirect to FindingDriverScreen
+      if (status == 'pending' || status == 'requested') {
         _persistPendingRideState(booking);
         final bookingArgs = <String, dynamic>{
           'booking_no': booking.bookingNo,
@@ -925,16 +949,6 @@ class HomeController extends GetxController {
           'booking_data': booking,
         };
         _redirectToRide(RouteNames.activeRide, bookingArgs);
-      } else if (status == 'completed') {
-        _clearPendingRideState();
-        final bookingArgs = <String, dynamic>{
-          'booking_no': booking.bookingNo,
-          'booking_data': booking,
-        };
-        _redirectToRide(RouteNames.rideSummary, bookingArgs);
-      } else if (status == 'cancelled') {
-        _clearPendingRideState();
-        activeRide.value = null;
       }
     } catch (error) {
       debugPrint('HomeController._checkActiveRide error: $error');
@@ -1247,6 +1261,7 @@ class HomeController extends GetxController {
       ),
       tagline: vehicle.tagline,
       startingFare: vehicle.startingFare,
+      networkIconUrl: vehicle.iconUrl ?? vehicle.imageUrl,
       subCategories: vehicle.subCategories
           .map(
             (subCategory) => VehicleSubCategory(
