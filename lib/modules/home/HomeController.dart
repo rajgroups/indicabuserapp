@@ -423,6 +423,20 @@ class HomeController extends GetxController {
     _storage.delete(StorageKeys.pendingRideVehicleType);
   }
 
+  void resetSearchAndRouteState() {
+    droplocation.value = null;
+    dropAddress.value = '';
+    dropPlaceName.value = '';
+    dropCoordinates.value = '';
+    destController.clear();
+    dropStops.clear();
+    polylines.clear();
+    polylines.refresh();
+    markers.clear();
+    _updateMarkers();
+    isMapViewMode.value = false;
+  }
+
   void _restorePendingRideFromStorage() {
     if (Get.currentRoute != RouteNames.home) {
       return;

@@ -273,6 +273,9 @@ class _OtpHeroBadgeChip extends StatelessWidget {
   }
 }
 
+const _kNavy  = Color(0xFF1A1A2E);
+const _kGreen = Color(0xFF00C853);
+
 /// Custom Vector Painter for top background graphics of OTP card
 class _OtpTopHeroVectorPainter extends CustomPainter {
   @override
@@ -280,11 +283,11 @@ class _OtpTopHeroVectorPainter extends CustomPainter {
     final width = size.width;
     final height = size.height;
 
-    // Ambient radial glow
+    // Ambient radial glow - subtle navy tint
     final bgGlowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFFFFF8E1).withValues(alpha: 0.7),
+          _kNavy.withValues(alpha: 0.04),
           const Color(0xFFFFFFFF),
         ],
         center: Alignment.topRight,
@@ -296,20 +299,20 @@ class _OtpTopHeroVectorPainter extends CustomPainter {
     final shieldCenterX = width * 0.85;
     final shieldCenterY = height * 0.55;
 
-    // Signal rings
+    // Signal rings - green pulse
     final pulseRing1 = Paint()
-      ..color = const Color(0xFFF5B800).withValues(alpha: 0.25)
+      ..color = _kGreen.withValues(alpha: 0.20)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawCircle(Offset(shieldCenterX, shieldCenterY), 38, pulseRing1);
 
     final pulseRing2 = Paint()
-      ..color = const Color(0xFFF5B800).withValues(alpha: 0.12)
+      ..color = _kGreen.withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     canvas.drawCircle(Offset(shieldCenterX, shieldCenterY), 54, pulseRing2);
 
-    // Small Gold Shield Graphic at bottom right inside top hero
+    // Shield Graphic - navy with green glow
     final shieldPath = Path();
     final sTop = shieldCenterY - 18;
     final sWidth = 32.0;
@@ -340,12 +343,25 @@ class _OtpTopHeroVectorPainter extends CustomPainter {
 
     final shieldGradientPaint = Paint()
       ..shader = const LinearGradient(
-        colors: [Color(0xFFFFD76A), Color(0xFFF5B800), Color(0xFFE6A700)],
+        colors: [Color(0xFF1A1A2E), Color(0xFF2D2D4E)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-      ).createShader(Rect.fromLTWH(shieldCenterX - sWidth / 2, sTop, sWidth, sHeight));
+      ).createShader(Rect.fromLTWH(
+          shieldCenterX - sWidth / 2, sTop, sWidth, sHeight));
 
     canvas.drawPath(shieldPath, shieldGradientPaint);
+
+    // Green check on shield
+    final checkPaint = Paint()
+      ..color = _kGreen
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    final checkPath = Path();
+    checkPath.moveTo(shieldCenterX - 6, shieldCenterY + 1);
+    checkPath.lineTo(shieldCenterX - 1, shieldCenterY + 6);
+    checkPath.lineTo(shieldCenterX + 8, shieldCenterY - 4);
+    canvas.drawPath(checkPath, checkPaint);
   }
 
   @override

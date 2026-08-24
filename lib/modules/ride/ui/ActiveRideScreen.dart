@@ -47,7 +47,6 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   bool _arrivedSheetShown = false;
 
   String? _lastPolylineStatus;
-  Timer? _pollingTimer;
 
   // ETA info from the Directions API (fetched once per phase)
   String _etaDistance = '';
@@ -112,12 +111,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     // Single initial API fetch
     _fetchBookingDetails();
 
-    // Periodic fallback polling timer every 3 seconds
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (mounted) {
-        _fetchBookingDetails(silent: true);
-      }
-    });
+
 
     // Subscribe to WebSocket events
     final socketService = Get.find<SocketService>();
@@ -135,7 +129,6 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
   @override
   void dispose() {
-    _pollingTimer?.cancel();
     _driverAnimator.dispose();
     WidgetsBinding.instance.removeObserver(this);
     final socketService = Get.find<SocketService>();
@@ -168,6 +161,16 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
         // If completed -> Navigate to RideSummaryScreen immediately
         if (status == 'completed') {
+          final storage = StorageService();
+          storage.delete(StorageKeys.pendingRideBookingNo);
+          storage.delete(StorageKeys.pendingRideVehicleType);
+
+          if (Get.isRegistered<HomeController>()) {
+            final homeCtrl = Get.find<HomeController>();
+            homeCtrl.activeRide.value = null;
+            homeCtrl.resetSearchAndRouteState();
+          }
+
           if (Get.currentRoute != RouteNames.rideSummary) {
             Get.offAllNamed(
               RouteNames.rideSummary,
@@ -182,6 +185,16 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
         // If cancelled -> Navigate to Home screen
         if (status == 'cancelled') {
+          final storage = StorageService();
+          storage.delete(StorageKeys.pendingRideBookingNo);
+          storage.delete(StorageKeys.pendingRideVehicleType);
+
+          if (Get.isRegistered<HomeController>()) {
+            final homeCtrl = Get.find<HomeController>();
+            homeCtrl.activeRide.value = null;
+            homeCtrl.resetSearchAndRouteState();
+          }
+
           Get.snackbar(
             'Ride Cancelled',
             'Your ride has been cancelled.',
@@ -338,6 +351,17 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     // Handle cancellation — navigate back to home with a message
     if (newStatus == 'cancelled') {
       if (!mounted) return;
+
+      final storage = StorageService();
+      storage.delete(StorageKeys.pendingRideBookingNo);
+      storage.delete(StorageKeys.pendingRideVehicleType);
+
+      if (Get.isRegistered<HomeController>()) {
+        final homeCtrl = Get.find<HomeController>();
+        homeCtrl.activeRide.value = null;
+        homeCtrl.resetSearchAndRouteState();
+      }
+
       Get.snackbar(
         'Ride Cancelled',
         'Your ride has been cancelled.',
@@ -352,6 +376,16 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
     // Handle ride completion — navigate to the ride summary screen
     if (newStatus == 'completed') {
+      final storage = StorageService();
+      storage.delete(StorageKeys.pendingRideBookingNo);
+      storage.delete(StorageKeys.pendingRideVehicleType);
+
+      if (Get.isRegistered<HomeController>()) {
+        final homeCtrl = Get.find<HomeController>();
+        homeCtrl.activeRide.value = null;
+        homeCtrl.resetSearchAndRouteState();
+      }
+
       if (Get.currentRoute != RouteNames.rideSummary) {
         Get.offAllNamed(
           RouteNames.rideSummary,
@@ -659,37 +693,46 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
               const SizedBox(height: 20),
 
               // Prominent Ride OTP Card inside Driver Arrived sheet
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.inputFill,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.border),
+              CustomPaint(
+                foregroundPainter: const _TraditionalArchPainter(
+                  color: Color(0xFFFFC107),
                 ),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Share this OTP with your driver',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A2E),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFF5B800),
+                      width: 1.5,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      otpStr != null && otpStr.isNotEmpty
-                          ? otpStr.split('').join('  ')
-                          : 'Waiting for OTP...',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 4,
-                        color: AppColors.primaryDark,
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'SHARE THIS OTP WITH YOUR DRIVER',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
+                          color: Color(0xFFFFC107),
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        otpStr != null && otpStr.isNotEmpty
+                            ? otpStr.split('').join('  ')
+                            : 'Waiting for OTP...',
+                        style: const TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 6,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -698,8 +741,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                 child: ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.textPrimary,
+                    backgroundColor: const Color(0xFF1A1A2E),
+                    foregroundColor: Colors.white,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -707,10 +750,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                     ),
                   ),
                   child: const Text(
-                    'OK',
+                    'OK, GOT IT',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
@@ -761,7 +804,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       storage.delete(StorageKeys.pendingRideVehicleType);
 
       if (Get.isRegistered<HomeController>()) {
-        Get.find<HomeController>().activeRide.value = null;
+        final homeCtrl = Get.find<HomeController>();
+        homeCtrl.activeRide.value = null;
+        homeCtrl.resetSearchAndRouteState();
       }
 
       if (mounted) {
@@ -1133,20 +1178,30 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
             minChildSize: 0.38,
             maxChildSize: 0.85,
             builder: (context, scrollController) {
-              return Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius:
-                      BorderRadius.vertical(top: Radius.circular(32)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x14000000),
-                      blurRadius: 28,
-                      offset: Offset(0, -6),
-                    ),
-                  ],
+              return CustomPaint(
+                foregroundPainter: const _TraditionalArchPainter(
+                  color: Color(0xFF1A1A2E),
                 ),
+                child: Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(32)),
+                    border: Border(
+                      top: BorderSide(
+                        color: Color(0xFFF5B800),
+                        width: 2.0,
+                      ),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 28,
+                        offset: Offset(0, -6),
+                      ),
+                    ],
+                  ),
                 child: SingleChildScrollView(
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
@@ -1187,14 +1242,11 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                                 vertical: 14,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(
-                                  alpha: 0.08,
-                                ),
+                                color: const Color(0xFFFFC107).withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
-                                  color: AppColors.primary.withValues(
-                                    alpha: 0.2,
-                                  ),
+                                  color: const Color(0xFFFFC107).withValues(alpha: 0.4),
+                                  width: 1.5,
                                 ),
                               ),
                               child: Row(
@@ -1202,16 +1254,16 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                                   const Icon(
                                     Icons.schedule_rounded,
                                     size: 20,
-                                    color: AppColors.primaryDark,
+                                    color: Color(0xFF1A1A2E),
                                   ),
                                   const SizedBox(width: 10),
                                   if (_etaDuration.isNotEmpty)
                                     Text(
                                       _etaDuration,
                                       style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.textPrimary,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF1A1A2E),
                                       ),
                                     ),
                                   if (_etaDistance.isNotEmpty &&
@@ -1219,7 +1271,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                                     const Text(
                                       '  •  ',
                                       style: TextStyle(
-                                        color: AppColors.textSecondary,
+                                        color: Color(0xFF1A1A2E),
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   if (_etaDistance.isNotEmpty)
@@ -1227,8 +1280,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                                       _etaDistance,
                                       style: const TextStyle(
                                         fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF1A1A2E),
                                       ),
                                     ),
                                   const Spacer(),
@@ -1340,16 +1393,17 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                                     'Connecting to driver...',
                                     backgroundColor: AppColors.surface,
                                   ),
-                                  icon: const Icon(Icons.call_rounded),
+                                  icon: const Icon(Icons.call_rounded, color: Colors.white),
                                   label: const Text(
-                                    'Call',
+                                    'Call Driver',
                                     style: TextStyle(
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15,
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.inputFill,
-                                    foregroundColor: AppColors.textPrimary,
+                                    backgroundColor: const Color(0xFF1A1A2E),
+                                    foregroundColor: Colors.white,
                                     elevation: 0,
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 16,
@@ -1381,7 +1435,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                                               ? Icons.block_rounded
                                               : Icons.cancel_rounded,
                                           color: isStarted
-                                              ? AppColors.textMuted
+                                              ? Colors.grey
                                               : Colors.red,
                                         ),
                                   label: Text(
@@ -1391,9 +1445,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                                             ? "Can't Cancel"
                                             : 'Cancel Ride',
                                     style: TextStyle(
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
                                       color: isStarted
-                                          ? AppColors.textMuted
+                                          ? Colors.grey
                                           : Colors.red,
                                     ),
                                   ),
@@ -1401,15 +1456,21 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                                     backgroundColor: isStarted
                                         ? AppColors.inputFill
                                         : Colors.red.withValues(
-                                            alpha: 0.1,
+                                            alpha: 0.08,
                                           ),
                                     foregroundColor: isStarted
-                                        ? AppColors.textMuted
+                                        ? Colors.grey
                                         : Colors.red,
                                     elevation: 0,
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 16,
                                     ),
+                                    side: isStarted
+                                        ? null
+                                        : BorderSide(
+                                            color: Colors.red.withValues(alpha: 0.4),
+                                            width: 1.5,
+                                          ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius:
                                           BorderRadius.circular(20),
@@ -1435,43 +1496,52 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 24,
+                          CustomPaint(
+                            foregroundPainter: const _TraditionalArchPainter(
+                              color: Color(0xFFFFC107),
                             ),
-                            decoration: BoxDecoration(
-                              color: AppColors.inputFill,
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  isStarted
-                                      ? 'Completion OTP'
-                                      : 'Ride OTP',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textSecondary,
-                                  ),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 24,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1A1A2E),
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: const Color(0xFFF5B800),
+                                  width: 1.5,
                                 ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  otp?.trim().isNotEmpty == true
-                                      ? otp!.trim().split('').join('  ')
-                                      : 'Waiting for OTP from the server',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 4,
-                                    color: AppColors.textPrimary,
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    isStarted
+                                        ? 'COMPLETION OTP'
+                                        : 'RIDE START OTP',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.0,
+                                      color: Color(0xFFFFC107),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    otp?.trim().isNotEmpty == true
+                                        ? otp!.trim().split('').join('  ')
+                                        : 'Waiting for OTP...',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 6,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(height: 32),
@@ -1553,8 +1623,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                     ),
                   ),
                 ),
-              );
-            },
+              ),
+            );
+          },
           ),
         ],
       ),
@@ -1621,3 +1692,69 @@ class _RouteStep extends StatelessWidget {
     );
   }
 }
+
+class _TraditionalArchPainter extends CustomPainter {
+  final Color color;
+
+  const _TraditionalArchPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Navy paint for outer curves
+    final navyPaint = Paint()
+      ..color = const Color(0xFF1A1A2E).withValues(alpha: 0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    // Gold/Amber paint for inner curves and details
+    final goldPaint = Paint()
+      ..color = const Color(0xFFF5B800).withValues(alpha: 0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+
+    final fillGold = Paint()
+      ..color = const Color(0xFFF5B800)
+      ..style = PaintingStyle.fill;
+
+    // --- Top-Right Corner Motif ---
+    final trPath = Path();
+    trPath.moveTo(size.width - 45, 0);
+    trPath.quadraticBezierTo(size.width - 25, 0, size.width - 25, 20);
+    trPath.quadraticBezierTo(size.width - 25, 40, size.width, 40);
+    canvas.drawPath(trPath, navyPaint);
+
+    final trPathInner = Path();
+    trPathInner.moveTo(size.width - 30, 0);
+    trPathInner.quadraticBezierTo(size.width - 15, 0, size.width - 15, 15);
+    trPathInner.quadraticBezierTo(size.width - 15, 28, size.width, 28);
+    canvas.drawPath(trPathInner, goldPaint);
+
+    // Decorative Lotus/Accent Petals in Top-Right
+    canvas.drawCircle(Offset(size.width - 15, 15), 3.0, fillGold);
+    canvas.drawCircle(Offset(size.width - 25, 6), 2.0, fillGold);
+    canvas.drawCircle(Offset(size.width - 6, 25), 2.0, fillGold);
+
+    // --- Bottom-Left Corner Motif ---
+    final blPath = Path();
+    blPath.moveTo(0, size.height - 40);
+    blPath.quadraticBezierTo(25, size.height - 40, 25, size.height - 20);
+    blPath.quadraticBezierTo(25, size.height, 45, size.height);
+    canvas.drawPath(blPath, navyPaint);
+
+    final blPathInner = Path();
+    blPathInner.moveTo(0, size.height - 28);
+    blPathInner.quadraticBezierTo(15, size.height - 28, 15, size.height - 15);
+    blPathInner.quadraticBezierTo(15, size.height, 30, size.height);
+    canvas.drawPath(blPathInner, goldPaint);
+
+    // Decorative Accent Dots in Bottom-Left
+    canvas.drawCircle(Offset(15, size.height - 15), 3.0, fillGold);
+    canvas.drawCircle(Offset(6, size.height - 25), 2.0, fillGold);
+    canvas.drawCircle(Offset(25, size.height - 6), 2.0, fillGold);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TraditionalArchPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+

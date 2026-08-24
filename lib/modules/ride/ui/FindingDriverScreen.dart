@@ -1036,8 +1036,12 @@ class _SearchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return CustomPaint(
+      foregroundPainter: const _TraditionalArchPainter(
+        color: Color(0xFF1A1A2E),
+      ),
+      child: Container(
+        width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
       decoration: BoxDecoration(
         color: AppColors.surface.withValues(alpha: 0.98),
@@ -1298,6 +1302,7 @@ class _SearchCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -1597,4 +1602,69 @@ class _StepLine extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _TraditionalArchPainter extends CustomPainter {
+  final Color color;
+
+  const _TraditionalArchPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Navy paint for outer curves
+    final navyPaint = Paint()
+      ..color = const Color(0xFF1A1A2E).withValues(alpha: 0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    // Gold/Amber paint for inner curves and details
+    final goldPaint = Paint()
+      ..color = const Color(0xFFF5B800).withValues(alpha: 0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+
+    final fillGold = Paint()
+      ..color = const Color(0xFFF5B800)
+      ..style = PaintingStyle.fill;
+
+    // --- Top-Right Corner Motif ---
+    final trPath = Path();
+    trPath.moveTo(size.width - 45, 0);
+    trPath.quadraticBezierTo(size.width - 25, 0, size.width - 25, 20);
+    trPath.quadraticBezierTo(size.width - 25, 40, size.width, 40);
+    canvas.drawPath(trPath, navyPaint);
+
+    final trPathInner = Path();
+    trPathInner.moveTo(size.width - 30, 0);
+    trPathInner.quadraticBezierTo(size.width - 15, 0, size.width - 15, 15);
+    trPathInner.quadraticBezierTo(size.width - 15, 28, size.width, 28);
+    canvas.drawPath(trPathInner, goldPaint);
+
+    // Decorative Lotus/Accent Petals in Top-Right
+    canvas.drawCircle(Offset(size.width - 15, 15), 3.0, fillGold);
+    canvas.drawCircle(Offset(size.width - 25, 6), 2.0, fillGold);
+    canvas.drawCircle(Offset(size.width - 6, 25), 2.0, fillGold);
+
+    // --- Bottom-Left Corner Motif ---
+    final blPath = Path();
+    blPath.moveTo(0, size.height - 40);
+    blPath.quadraticBezierTo(25, size.height - 40, 25, size.height - 20);
+    blPath.quadraticBezierTo(25, size.height, 45, size.height);
+    canvas.drawPath(blPath, navyPaint);
+
+    final blPathInner = Path();
+    blPathInner.moveTo(0, size.height - 28);
+    blPathInner.quadraticBezierTo(15, size.height - 28, 15, size.height - 15);
+    blPathInner.quadraticBezierTo(15, size.height, 30, size.height);
+    canvas.drawPath(blPathInner, goldPaint);
+
+    // Decorative Accent Dots in Bottom-Left
+    canvas.drawCircle(Offset(15, size.height - 15), 3.0, fillGold);
+    canvas.drawCircle(Offset(6, size.height - 25), 2.0, fillGold);
+    canvas.drawCircle(Offset(25, size.height - 6), 2.0, fillGold);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TraditionalArchPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
