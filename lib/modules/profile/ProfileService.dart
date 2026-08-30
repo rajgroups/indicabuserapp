@@ -15,4 +15,12 @@ class ProfileService {
   Future<UserProfileModel> updateProfile(Map<String, dynamic> data) async {
     return await _repository.updateProfile(data);
   }
+
+  Future<String> requestDeleteOtp() async {
+    return await _repository.requestDeleteOtp();
+  }
+
+  Future<bool> confirmDeleteAccount(String otp) async {
+    return await _repository.confirmDeleteAccount(otp);
+  }
 }

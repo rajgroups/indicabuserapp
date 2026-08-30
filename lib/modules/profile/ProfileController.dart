@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/models/UserProfileModel.dart';
+import 'package:indicab/core/constants/Keys.dart';
+import 'package:indicab/core/services/SecureStorageService.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:indicab/core/services/SocketService.dart';
+import 'package:indicab/core/network/client.dart';
 import 'ProfileService.dart';
 
 class ProfileController extends GetxController {
   ProfileController();
 
   final ProfileService _profileService = ProfileService();
+  final SecureStorageService _secureStorage = SecureStorageService();
 
   final Rxn<UserProfileModel> userProfile = Rxn<UserProfileModel>();
   final RxBool isLoading = false.obs;
@@ -79,23 +85,16 @@ class ProfileController extends GetxController {
 
     try {
       final updateData = {
-        'name': nameController.text.trim(),
-        'email': emailController.text.trim(),
+        'name': nameController.text.trim().isEmpty ? null : nameController.text.trim(),
+        'email': emailController.text.trim().isEmpty ? null : emailController.text.trim(),
         'gender': selectedGender.value,
-        'address': addressController.text.trim(),
-        'emergency_contact_name': emergencyNameController.text.trim(),
-        'emergency_contact_mobile': emergencyMobileController.text.trim(),
+        'address': addressController.text.trim().isEmpty ? null : addressController.text.trim(),
+        'emergency_contact_name': emergencyNameController.text.trim().isEmpty ? null : emergencyNameController.text.trim(),
+        'emergency_contact_mobile': emergencyMobileController.text.trim().isEmpty ? null : emergencyMobileController.text.trim(),
       };
 
       final updatedProfile = await _profileService.updateProfile(updateData);
       userProfile.value = updatedProfile;
-
-      Get.snackbar(
-        'Success',
-        'Profile updated successfully.',
-        backgroundColor: AppColors.surface,
-        colorText: AppColors.textPrimary,
-      );
 
       return true;
     } catch (e) {
@@ -106,6 +105,42 @@ class ProfileController extends GetxController {
         backgroundColor: AppColors.surface,
         colorText: Colors.red,
       );
+      return false;
+    } finally {
+      isUpdating.value = false;
+    }
+  }
+
+  Future<String> requestDeleteOtp() async {
+    isUpdating.value = true;
+    try {
+      final otp = await _profileService.requestDeleteOtp();
+      return otp;
+    } catch (e) {
+      debugPrint('ProfileController.requestDeleteOtp error: $e');
+      Get.snackbar('Error', 'Failed to request delete OTP: $e');
+      return '';
+    } finally {
+      isUpdating.value = false;
+    }
+  }
+
+  Future<bool> confirmDeleteAccount(String otp) async {
+    isUpdating.value = true;
+    try {
+      final success = await _profileService.confirmDeleteAccount(otp);
+      if (success) {
+        await _secureStorage.delete(StorageKeys.token);
+        await GetStorage().remove(StorageKeys.token);
+        ApiClient().revokeTokens();
+        if (Get.isRegistered<SocketService>()) {
+          Get.find<SocketService>().disconnect();
+        }
+      }
+      return success;
+    } catch (e) {
+      debugPrint('ProfileController.confirmDeleteAccount error: $e');
+      Get.snackbar('Error', 'Failed to verify delete OTP: $e');
       return false;
     } finally {
       isUpdating.value = false;

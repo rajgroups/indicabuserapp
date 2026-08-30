@@ -37,4 +37,28 @@ class ProfileRepository {
 
     throw Exception('Failed to update profile.');
   }
+
+  Future<String> requestDeleteOtp() async {
+    final response = await _apiClient.post('/delete-account/request-otp');
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) {
+      final data = payload['data'];
+      if (data is Map<String, dynamic> && data.containsKey('otp')) {
+        return data['otp'].toString();
+      }
+    }
+    return '';
+  }
+
+  Future<bool> confirmDeleteAccount(String otp) async {
+    final response = await _apiClient.post(
+      '/delete-account/confirm',
+      data: {'otp': otp},
+    );
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) {
+      return payload['success'] == true;
+    }
+    return false;
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/constants/Strings.dart';
+import 'package:indicab/core/utils/Helpers.dart';
 import 'package:indicab/layout/app.dart';
 import 'package:indicab/modules/auth/widgets/login_illustration.dart';
 
@@ -419,16 +420,14 @@ class LoginScreen extends GetView<AuthController> {
                                     SocialButton(
                                       icon: Icons.g_mobiledata_rounded,
                                       label: AppStrings.sign_google,
-                                      onTap: controller.loginWithGoogle,
+                                      onTap: () => Helpers.showComingSoon('Google Sign In'),
                                       isGoogle: true,
                                     ),
                                     const SizedBox(height: 10),
                                     SocialButton(
                                       icon: Icons.apple_rounded,
                                       label: AppStrings.sign_apple,
-                                      onTap: () {
-                                        // Apple sign in action
-                                      },
+                                      onTap: () => Helpers.showComingSoon('Apple Sign In'),
                                       isGoogle: false,
                                     ),
                                   ],

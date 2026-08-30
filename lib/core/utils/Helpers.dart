@@ -64,6 +64,33 @@ class Helpers {
     );
   }
 
+  static void showToast(String message) {
+    Get.rawSnackbar(
+      messageText: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      backgroundColor: const Color(0xFF1A1A2E).withValues(alpha: 0.95),
+      borderRadius: 50,
+      margin: const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 2),
+      boxShadows: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.2),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+  }
+
   static void showComingSoon(String featureTitle, {String? customText}) {
     final context = Get.context;
     if (context == null) return;

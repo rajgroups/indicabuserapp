@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../ProfileController.dart';
+import 'package:indicab/core/utils/Helpers.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kNavy    = Color(0xFF1A1A2E);
@@ -217,7 +218,10 @@ class EditProfileScreen extends StatelessWidget {
                                 : () async {
                                     final success =
                                         await controller.saveProfile();
-                                    if (success) Get.back();
+                                    if (success) {
+                                      Get.back();
+                                      Helpers.showToast('Profile updated successfully.');
+                                    }
                                   },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _kNavy,

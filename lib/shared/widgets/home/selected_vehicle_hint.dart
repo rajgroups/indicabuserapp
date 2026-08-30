@@ -6,16 +6,30 @@ class SelectedVehicleHint extends StatelessWidget {
   const SelectedVehicleHint({
     super.key,
     required this.option,
+    this.subCategory,
     required this.onTap,
   });
 
   final VehicleOption option;
+  final VehicleSubCategory? subCategory;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final compact = width < 380;
+
+    final displayName = subCategory != null
+        ? '${option.label} (${subCategory!.name})'
+        : option.label;
+
+    final displayFare = subCategory != null
+        ? (subCategory!.estimatedFare ?? subCategory!.price)
+        : option.startingFare;
+
+    final displayTagline = subCategory != null
+        ? subCategory!.description
+        : option.tagline;
 
     return Material(
       color: Colors.transparent,
@@ -47,11 +61,23 @@ class SelectedVehicleHint extends StatelessWidget {
                   color: option.accentColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(
-                  option.icon,
-                  color: option.accentColor,
-                  size: compact ? 24 : 28,
-                ),
+                child: option.networkIconUrl != null && option.networkIconUrl!.isNotEmpty
+                    ? ClipOval(
+                        child: Image.network(
+                          option.networkIconUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                            option.icon,
+                            color: option.accentColor,
+                            size: compact ? 24 : 28,
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        option.icon,
+                        color: option.accentColor,
+                        size: compact ? 24 : 28,
+                      ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -59,7 +85,7 @@ class SelectedVehicleHint extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${option.label} selected',
+                      '$displayName selected',
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -68,7 +94,7 @@ class SelectedVehicleHint extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      option.startingFare,
+                      displayFare,
                       style: TextStyle(
                         fontSize: 12,
                         color: option.accentColor,
@@ -78,7 +104,7 @@ class SelectedVehicleHint extends StatelessWidget {
                     if (!compact) ...[
                       const SizedBox(height: 2),
                       Text(
-                        option.tagline,
+                        displayTagline,
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,

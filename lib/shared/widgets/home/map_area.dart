@@ -66,7 +66,7 @@ class HomeMapArea extends GetView<HomeController> {
           // ── My-location FAB ───────────────────────────────────────────
           Positioned(
             right: 16,
-            bottom: width < 380 ? 120 : 130,
+            bottom: (MediaQuery.of(context).size.height * 0.5) + 16,
             child: Material(
               color: Colors.white,
               elevation: 4,

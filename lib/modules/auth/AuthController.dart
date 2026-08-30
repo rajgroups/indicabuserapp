@@ -36,7 +36,20 @@ class AuthController extends GetxController {
       print('Send OTP API Response:$response');
 
       Helpers.close(); // Close the loading dialog
-      Helpers.success("OTP sent successfully", RouteNames.otp, arguments: mobile);
+
+      String successMessage = "OTP sent successfully";
+      final payload = response.data;
+      if (payload is Map<String, dynamic>) {
+        final data = payload['data'];
+        if (data is Map<String, dynamic> && data.containsKey('otp')) {
+          final otpCode = data['otp']?.toString();
+          if (otpCode != null && otpCode.isNotEmpty) {
+            successMessage = "OTP sent successfully. Your test OTP is: $otpCode";
+          }
+        }
+      }
+
+      Helpers.success(successMessage, RouteNames.otp, arguments: mobile);
     } catch (e) {
       Helpers.close(); // Close the loading dialog
       print('Send OTP Error: $e'); // Print the error to the terminal

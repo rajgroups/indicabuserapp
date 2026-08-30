@@ -96,6 +96,7 @@ class LocationService {
                         child: const Text(
                           'Allow Access',
                           style: TextStyle(
+                            color: Colors.white,
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                           ),

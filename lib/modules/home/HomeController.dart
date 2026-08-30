@@ -21,6 +21,9 @@ import 'package:indicab/modules/home/HomeService.dart';
 import 'package:indicab/modules/home/models/VehicleModels.dart';
 import 'package:indicab/modules/home/models/VehicleTypeResponse.dart';
 import 'package:indicab/core/models/booking_response.dart';
+import 'package:indicab/core/models/NearbyVehicle.dart';
+import 'package:indicab/core/repository/VehicleRepository.dart';
+import 'package:indicab/core/services/VehicleMarkerService.dart';
 
 class DropStopModel {
   final String id;
@@ -65,6 +68,47 @@ class HomeController extends GetxController {
   final RxBool isAddressLoading = false.obs;
   final RxList<VehicleOption> vehicleTypes = <VehicleOption>[].obs;
   final Rxn<VehicleOption> selectedVehicle = Rxn<VehicleOption>();
+  final Rxn<VehicleSubCategory> selectedSubCategory = Rxn<VehicleSubCategory>();
+
+  final VehicleRespository _vehicleRepo = VehicleRespository(ApiClient());
+  final VehicleMarkerService _homeMarkerService = Get.put(VehicleMarkerService());
+  final RxList<NearbyVehicle> homeNearbyVehicles = <NearbyVehicle>[].obs;
+  Timer? _homeVehiclesTimer;
+
+  Timer? _fetchVehiclesDebounce;
+
+  Future<void> fetchHomeNearbyVehicles() async {
+    final option = selectedVehicle.value;
+    if (option == null) return;
+
+    _fetchVehiclesDebounce?.cancel();
+    _fetchVehiclesDebounce = Timer(const Duration(milliseconds: 600), () async {
+      try {
+        final pickup = pickuplocation.value ?? pickupPoint.value;
+        final vehicles = await _vehicleRepo.getNearbyVehicles(
+          vehicleCategoryId: option.id,
+          latitude: pickup.latitude,
+          longitude: pickup.longitude,
+          radius: 5.0,
+        );
+        homeNearbyVehicles.value = vehicles;
+        await _updateMarkers();
+      } catch (e) {
+        debugPrint('Error fetching home nearby vehicles: $e');
+      }
+    });
+  }
+
+  void startHomeVehiclesPolling() {
+    _homeVehiclesTimer?.cancel();
+    _homeVehiclesTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      fetchHomeNearbyVehicles();
+    });
+  }
+
+  void stopHomeVehiclesPolling() {
+    _homeVehiclesTimer?.cancel();
+  }
   final Rx<LatLng> pickupPoint = defaultPickup.obs;
   final RxString currentAddress = ''.obs;
 
@@ -136,6 +180,8 @@ class HomeController extends GetxController {
   @override
   void onClose() {
     _dragRouteDebounce?.cancel();
+    _fetchVehiclesDebounce?.cancel();
+    stopHomeVehiclesPolling();
     originController.dispose();
     destController.dispose();
     super.onClose();
@@ -151,6 +197,7 @@ class HomeController extends GetxController {
     originController.text = "Current Location";
     _ensureInitialDropStop();
     await _loadCustomMarkerIcons();
+    startHomeVehiclesPolling();
 
     final token = await _readStoredToken();
 
@@ -707,7 +754,7 @@ class HomeController extends GetxController {
     );
   }
 
-  void _updateMarkers() {
+  Future<void> _updateMarkers() async {
     markers.clear();
 
     final activePickup = _effectivePickupPoint();
@@ -769,6 +816,27 @@ class HomeController extends GetxController {
           );
         }
       }
+    }
+
+    // Add home nearby vehicles
+    for (final vehicle in homeNearbyVehicles) {
+      final iconUrl = vehicle.iconUrl;
+      final icon = (iconUrl != null && iconUrl.isNotEmpty)
+          ? await _homeMarkerService.loadNetworkIcon(iconUrl, size: 80)
+          : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+
+      markers.add(
+        Marker(
+          markerId: MarkerId('home_vehicle_${vehicle.vehicleId}'),
+          position: LatLng(vehicle.latitude, vehicle.longitude),
+          icon: icon,
+          anchor: const Offset(0.5, 1.0),
+          infoWindow: InfoWindow(
+            title: vehicle.vehicleNumber ?? 'Vehicle',
+            snippet: 'Distance: ${vehicle.distanceKm} km',
+          ),
+        ),
+      );
     }
 
     markers.refresh();
@@ -963,6 +1031,7 @@ class HomeController extends GetxController {
   Future<void> _loadHomePage() async {
     await detectAndSetCurrentLocation();
     await getVehicleType();
+    unawaited(fetchHomeNearbyVehicles());
   }
 
   Future<void> _checkActiveRide() async {
@@ -1370,6 +1439,18 @@ class HomeController extends GetxController {
         final updatedSelected = mapped.firstWhereOrNull((v) => v.id == currentId);
         if (updatedSelected != null) {
           selectedVehicle.value = updatedSelected;
+          if (selectedSubCategory.value != null) {
+            final subId = selectedSubCategory.value!.id;
+            final updatedSub = updatedSelected.subCategories.firstWhereOrNull((s) => s.id == subId);
+            if (updatedSub != null) {
+              selectedSubCategory.value = updatedSub;
+            }
+          }
+        }
+      } else if (mapped.isNotEmpty) {
+        selectedVehicle.value = mapped.first;
+        if (mapped.first.subCategories.isNotEmpty) {
+          selectedSubCategory.value = mapped.first.subCategories.first;
         }
       }
     } catch (error) {
@@ -1415,16 +1496,31 @@ class HomeController extends GetxController {
   void toggleVehicleSelection(VehicleOption vehicle) {
     if (selectedVehicle.value?.id == vehicle.id) {
       selectedVehicle.value = null;
+      selectedSubCategory.value = null;
+      homeNearbyVehicles.clear();
+      _updateMarkers();
       return;
     }
 
     selectedVehicle.value = vehicle;
+    if (vehicle.subCategories.isNotEmpty) {
+      selectedSubCategory.value = vehicle.subCategories.first;
+    } else {
+      selectedSubCategory.value = null;
+    }
     unawaited(getVehicleType());
+    unawaited(fetchHomeNearbyVehicles());
   }
 
   void selectVehicle(VehicleOption vehicle) {
     selectedVehicle.value = vehicle;
+    if (vehicle.subCategories.isNotEmpty) {
+      selectedSubCategory.value = vehicle.subCategories.first;
+    } else {
+      selectedSubCategory.value = null;
+    }
     unawaited(getVehicleType());
+    unawaited(fetchHomeNearbyVehicles());
   }
 
   VehicleOption _mapVehicleType(

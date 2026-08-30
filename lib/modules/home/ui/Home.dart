@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/controller/BookingController.dart';
 import 'package:indicab/core/routes/names.dart';
@@ -34,7 +36,57 @@ class _HomeScreenState extends State<HomeScreen> {
     final compact = width < 380;
     final vehicleHeight = compact ? 208.0 : 216.0;
 
-    return AppScreen(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              'Exit App',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1A1A2E),
+              ),
+            ),
+            content: const Text(
+              'Are you sure you want to exit Indicab?',
+              style: TextStyle(color: Color(0xFFB0B3C1), fontWeight: FontWeight.w600),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Color(0xFFB0B3C1), fontWeight: FontWeight.w700),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE53935),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('Exit'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldExit ?? false) {
+          await SystemNavigator.pop();
+        }
+      },
+      child: AppScreen(
       backgroundColor: AppColors.authBackground,
       safeAreaBottom: false,
       child: Column(
@@ -44,9 +96,9 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const HomeMapArea(),
                 DraggableScrollableSheet(
-                  initialChildSize: compact ? 0.48 : 0.52,
-                  minChildSize: compact ? 0.14 : 0.15,
-                  maxChildSize: 0.92,
+                  initialChildSize: 0.5,
+                  minChildSize: 0.5,
+                  maxChildSize: 0.9,
                   builder: (context, scrollController) {
                     return Container(
                       width: double.infinity,
@@ -223,6 +275,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               Obx(() {
                                 final selectedVehicle =
                                     controller.selectedVehicle.value;
+                                final selectedSub =
+                                    controller.selectedSubCategory.value;
 
                                 if (selectedVehicle == null) {
                                   return const SizedBox.shrink();
@@ -233,6 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     const SizedBox(height: 18),
                                     SelectedVehicleHint(
                                       option: selectedVehicle,
+                                      subCategory: selectedSub,
                                       onTap: () => _openVehicleSheet(
                                         context,
                                         selectedVehicle,
@@ -403,6 +458,86 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   },
                 ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 24,
+                  child: Obx(() {
+                    final selectedVehicle = controller.selectedVehicle.value;
+                    final selectedSub = controller.selectedSubCategory.value;
+
+                    if (selectedVehicle == null || selectedSub == null) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            final ctx = Get.context;
+                            if (ctx == null) return;
+                            final bookingController =
+                                Get.isRegistered<BookingController>()
+                                ? Get.find<BookingController>()
+                                : Get.put<BookingController>(BookingController());
+                            bookingController.showBookingModeDialog(
+                              ctx,
+                              selectedVehicle,
+                              selectedSub,
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(99),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 28,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  selectedVehicle.accentColor,
+                                  Color.lerp(selectedVehicle.accentColor, Colors.black, 0.15)!,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(99),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: selectedVehicle.accentColor.withValues(alpha: 0.4),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.bolt_rounded,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Book ${selectedSub.name} Now',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
                 const Positioned(
                   top: 0,
                   left: 0,
@@ -414,8 +549,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Future<void> _openVehicleSheet(
     BuildContext context,
@@ -440,10 +576,16 @@ class _HomeScreenState extends State<HomeScreen> {
               scrollController: scrollController,
               hasDropLocation: hasDrop,
               distanceKm: distKm,
+              selectedSubCategory: controller.selectedSubCategory.value,
               onSelect: (subCategory) {
-                // Dismiss the bottom sheet first
+                // Tapped card: select subcategory, draw on map, and close modal sheet
+                controller.selectedSubCategory.value = subCategory;
+                unawaited(controller.fetchHomeNearbyVehicles());
                 Navigator.of(sheetContext).pop();
-                // Show the booking mode dialog after the sheet is fully dismissed
+              },
+              onBook: (subCategory) {
+                // Tapped Book button: pop modal sheet and show booking dialog immediately
+                Navigator.of(sheetContext).pop();
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   final ctx = Get.context;
                   if (ctx == null) return;

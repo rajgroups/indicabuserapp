@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/models/Vehicle.dart';
+import 'package:indicab/core/models/NearbyVehicle.dart';
 
 class VehicleMarkerService extends GetxService {
   final RxSet<Marker> markers = <Marker>{}.obs;
@@ -23,6 +24,43 @@ class VehicleMarkerService extends GetxService {
   BitmapDescriptor get _fallback =>
       BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
 
+  // ── Build all nearby vehicle markers ──────────────────────────────────────────
+  Future<void> buildNearbyMarkers(List<NearbyVehicle> nearbyVehicles) async {
+    final Set<Marker> newMarkers = {};
+
+    // Preserve the current user location marker
+    final currentUserMarkers =
+        markers.where((m) => m.markerId.value == 'current_user');
+    newMarkers.addAll(currentUserMarkers);
+
+    for (final vehicle in nearbyVehicles) {
+      final lat = vehicle.latitude;
+      final lng = vehicle.longitude;
+
+      // Prefer vehicle category icon url
+      final iconUrl = vehicle.iconUrl;
+      final icon = (iconUrl != null && iconUrl.isNotEmpty)
+          ? await loadNetworkIcon(iconUrl, size: 80)
+          : _fallback;
+
+      newMarkers.add(
+        Marker(
+          markerId: MarkerId('vehicle_${vehicle.vehicleId}'),
+          position: LatLng(lat, lng),
+          infoWindow: InfoWindow(
+            title: vehicle.vehicleNumber ?? 'Vehicle',
+            snippet: 'Distance: ${vehicle.distanceKm} km',
+          ),
+          icon: icon,
+          anchor: const Offset(0.5, 1.0),
+        ),
+      );
+    }
+
+    markers.assignAll(newMarkers);
+    markers.refresh();
+  }
+
   // ── Build all vehicle markers ───────────────────────────────────────────────
   Future<void> buildMarkers(List<VehicleModel> nearbyVehicles) async {
     final Set<Marker> newMarkers = {};
@@ -39,7 +77,7 @@ class VehicleMarkerService extends GetxService {
       // Prefer category icon → category image → fallback default marker
       final iconUrl = vehicle.categoryIcon ?? vehicle.categoryImage;
       final icon = (iconUrl != null && iconUrl.isNotEmpty)
-          ? await _loadNetworkIcon(iconUrl, size: 80)
+          ? await loadNetworkIcon(iconUrl, size: 80)
           : _fallback;
 
       newMarkers.add(
@@ -76,7 +114,7 @@ class VehicleMarkerService extends GetxService {
   void clear() => markers.clear();
 
   // ── Load a network image URL → BitmapDescriptor ────────────────────────────
-  Future<BitmapDescriptor> _loadNetworkIcon(String url, {int size = 80}) async {
+  Future<BitmapDescriptor> loadNetworkIcon(String url, {int size = 80}) async {
     if (_iconCache.containsKey(url)) return _iconCache[url]!;
 
     try {

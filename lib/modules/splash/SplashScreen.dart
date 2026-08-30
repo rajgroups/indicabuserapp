@@ -234,130 +234,32 @@ class _SplashScreenState extends State<SplashScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // ── Corporate Emblem Container ──────────────────────────
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Pulse Ambient Glow Ring (Yellow Rapido Accent)
-                          AnimatedBuilder(
-                            animation: _pulseController,
-                            builder: (context, child) {
-                              final double pulseScale =
-                                  1.0 + (_pulseController.value * 0.08);
-                              return Transform.scale(
-                                scale: pulseScale,
-                                child: Container(
-                                  width: 128,
-                                  height: 128,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: AppColors.primary.withValues(
-                                      alpha: 0.12,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                      SizedBox(
+                        width: 100,
+                        height: 100,
+                        child: Image.asset(
+                          'assets/icon/app_icon.png',
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Icon(
+                            Icons.local_taxi_rounded,
+                            size: 80,
+                            color: AppColors.primary,
                           ),
-
-                          // Outer Ring Accent
-                          Container(
-                            width: 114,
-                            height: 114,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.primary.withValues(alpha: 0.35),
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-
-                          // App Icon Card Container
-                          Container(
-                            width: 100,
-                            height: 100,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(26),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.28),
-                                  blurRadius: 24,
-                                  offset: const Offset(0, 10),
-                                  spreadRadius: 2,
-                                ),
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                              border: Border.all(
-                                color: AppColors.lightGrey,
-                                width: 1.2,
-                              ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Image.asset(
-                                  'assets/icon/app_icon.png',
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(
-                                    Icons.local_taxi_rounded,
-                                    size: 52,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
 
                       const SizedBox(height: 32),
 
-                      // ── Brand Title with Rapido Yellow Badge ──────────────────
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Indica',
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.darkSlate,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.40),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: const Text(
-                              'B',
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.darkSlate,
-                              ),
-                            ),
-                          ),
-                        ],
+                      // ── Brand Title ──────────────────
+                      const Text(
+                        'Indicab',
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.darkSlate,
+                          letterSpacing: 1.2,
+                        ),
                       ),
 
                       const SizedBox(height: 12),

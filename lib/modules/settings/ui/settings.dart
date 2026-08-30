@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:indicab/core/utils/Helpers.dart';
+import 'package:indicab/core/routes/names.dart';
+import 'package:indicab/modules/profile/ProfileController.dart';
 
 const _kNavy   = Color(0xFF1A1A2E);
 const _kGreen  = Color(0xFF00C853);
@@ -118,7 +121,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     iconColor: const Color(0xFF00B4D8),
                     title: 'Change Password',
                     subtitle: 'Update security credentials',
-                    onTap: () => Get.snackbar('Change Password', 'Navigate to change password.'),
+                    onTap: () => Helpers.showToast('Change Password feature is coming soon!'),
                   ),
                   _CardDivider(),
                   _TileRow(
@@ -126,7 +129,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     iconColor: const Color(0xFF9C27B0),
                     title: 'Language',
                     subtitle: 'English (IN)',
-                    onTap: () => Get.snackbar('Language', 'Change app language.'),
+                    onTap: () => Helpers.showToast('Language settings coming soon!'),
                   ),
                   _CardDivider(),
                   _TileRow(
@@ -134,7 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     iconColor: _kNavy,
                     title: 'Privacy Policy',
                     subtitle: 'Review our privacy rules',
-                    onTap: () => Get.snackbar('Privacy', 'Navigating to privacy policy.'),
+                    onTap: () => Helpers.showToast('Privacy Policy feature coming soon!'),
                   ),
                 ]),
 
@@ -147,11 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   child: InkWell(
-                    onTap: () => Get.snackbar(
-                      'Warning',
-                      'Account deletion requires verification.',
-                      colorText: _kRed,
-                    ),
+                    onTap: () => _handleDeleteAccount(context),
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -214,6 +213,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleDeleteAccount(BuildContext context) async {
+    final ProfileController profileController = Get.put(ProfileController());
+
+    // Show loading spinner
+    Helpers.loading();
+    final otp = await profileController.requestDeleteOtp();
+    Helpers.close(); // close loading spinner
+
+    if (otp.isEmpty) {
+      Helpers.showToast('Failed to send verification code. Please try again.');
+      return;
+    }
+
+    // Now, show the OTP input dialog
+    final TextEditingController otpInputController = TextEditingController(text: otp);
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'Verify Deletion',
+          style: TextStyle(fontWeight: FontWeight.w900, color: _kNavy),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'A verification code has been generated. Please enter the OTP to confirm deactivating and soft-deleting your account.',
+              style: TextStyle(color: _kMuted, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: otpInputController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(
+                hintText: 'Enter OTP',
+                counterText: '',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, letterSpacing: 4),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel', style: TextStyle(color: _kMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final code = otpInputController.text.trim();
+              if (code.length < 4) {
+                Helpers.showToast('Please enter a valid OTP.');
+                return;
+              }
+
+              Navigator.of(dialogContext).pop(); // close dialog
+              Helpers.loading(); // show loading spinner
+              final success = await profileController.confirmDeleteAccount(code);
+              Helpers.close(); // close loading spinner
+
+              if (success) {
+                Helpers.showToast('Your account was soft-deleted successfully.');
+                await Future.delayed(const Duration(seconds: 1));
+                Get.offAllNamed(RouteNames.login);
+              } else {
+                Helpers.showToast('Invalid OTP. Account deletion aborted.');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kRed,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Confirm Delete'),
           ),
         ],
       ),

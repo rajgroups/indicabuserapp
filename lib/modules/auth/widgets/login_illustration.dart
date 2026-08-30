@@ -168,7 +168,7 @@ class LoginIllustration extends StatelessWidget {
                       _HeroBadgeChip(
                         icon: Icons.verified_user_rounded,
                         iconColor: const Color(0xFF2E7D32),
-                        text: "Safe Rides",
+                        text: "Economy Rides",
                       ),
                     ],
                   ),

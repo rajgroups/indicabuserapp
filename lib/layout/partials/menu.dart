@@ -32,7 +32,6 @@ class ProfileScreen extends StatelessWidget {
         final displayPhone = profile?.displayPhone ?? 'Setting up profile...';
         final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
         final rating = profile?.rating ?? 4.85;
-        final walletBalance = profile?.walletBalance ?? 0.0;
 
         return CustomScrollView(
           physics: const BouncingScrollPhysics(),
@@ -172,99 +171,7 @@ class ProfileScreen extends StatelessWidget {
             SliverToBoxAdapter(
               child: Column(
                 children: [
-                  // ── Wallet card ─────────────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: _kNavy,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _kNavy.withValues(alpha: 0.25),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          // Wallet icon
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFCC00).withValues(alpha: 0.18),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.account_balance_wallet_rounded,
-                                color: Color(0xFFFFCC00),
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'INDICAB WALLET',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFFFFCC00),
-                                    letterSpacing: 0.7,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  '₹${walletBalance.toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const Text(
-                                  'Available balance',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.white54,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Get.snackbar(
-                                'Wallet', 'Top-up coming soon!'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFFCC00),
-                              foregroundColor: _kNavy,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              minimumSize: Size.zero,
-                            ),
-                            child: const Text(
-                              'Add Money',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  // Wallet section disabled
 
                   // ── Section label ───────────────────────────────────
                   const Padding(

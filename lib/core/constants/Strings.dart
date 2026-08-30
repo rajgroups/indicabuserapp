@@ -2,7 +2,7 @@ class AppStrings {
   static const appName = "Indicab";
   static const login = "Login";
   static const contin = "Continue";
-  static const title_tag = "Ride Anywhere, Anytime";
+  static const title_tag = "Your Ride, Your Choice";
   static const sub_tag = "Get where you need to be — fast, safe & affordable.";
   static const otp = "OTP Verification";
 

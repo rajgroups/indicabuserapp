@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:indicab/core/models/Vehicle.dart';
+import 'package:indicab/core/models/NearbyVehicle.dart';
 import 'package:indicab/core/network/client.dart';
 import 'package:indicab/core/repository/VehicleRepository.dart';
 import 'package:indicab/core/services/LocationService.dart';
@@ -29,7 +29,7 @@ class Vehiclecontroller extends GetxController {
   RxInt searchRadius = 400.obs;
   RxInt activeApiRadius = 400.obs;
   final RxBool isLoading = false.obs;
-  final RxList<VehicleModel> nearbyVehicles = <VehicleModel>[].obs;
+  final RxList<NearbyVehicle> nearbyVehicles = <NearbyVehicle>[].obs;
   RxSet<Marker> get markers => _markerService.markers;
   LocationService locationService = LocationService();
 
@@ -82,15 +82,15 @@ class Vehiclecontroller extends GetxController {
     try {
       isLoading.value = true;
       activeApiRadius.value = radius;
-      final vehicles = await _repository.getTypeVehicles(
-        lat: lat.toDouble(),
-        lng: lng.toDouble(),
-        radius: (radius / 1000.0).ceil(), // Convert meters to kilometers for the API
-        category: category,
+      final vehicles = await _repository.getNearbyVehicles(
+        vehicleCategoryId: category,
+        latitude: lat.toDouble(),
+        longitude: lng.toDouble(),
+        radius: radius / 1000.0, // Convert meters to kilometers for the API
       );
 
       nearbyVehicles.value = vehicles;
-      await _markerService.buildMarkers(vehicles);
+      await _markerService.buildNearbyMarkers(vehicles);
     } catch (e) {
       if (e is NetworkException && e.statusCode == 401) {
         return;

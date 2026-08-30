@@ -8,6 +8,8 @@ class VehicleDetailsSheet extends StatelessWidget {
     required this.option,
     required this.scrollController,
     required this.onSelect,
+    required this.onBook,
+    this.selectedSubCategory,
     this.onMapTap,
     this.hasDropLocation = false,
     this.distanceKm = 0.0,
@@ -16,6 +18,8 @@ class VehicleDetailsSheet extends StatelessWidget {
   final VehicleOption option;
   final ScrollController scrollController;
   final ValueChanged<VehicleSubCategory> onSelect;
+  final ValueChanged<VehicleSubCategory> onBook;
+  final VehicleSubCategory? selectedSubCategory;
   final Function(VehicleSubCategory)? onMapTap;
   final bool hasDropLocation;
   final double distanceKm;
@@ -85,7 +89,9 @@ class VehicleDetailsSheet extends StatelessWidget {
                             networkIconUrl: option.networkIconUrl,
                             hasDropLocation: hasDropLocation,
                             distanceKm: distanceKm,
+                            isSelected: selectedSubCategory?.id == subCategory.id,
                             onTap: () => onSelect(subCategory),
+                            onBookTap: () => onBook(subCategory),
                             onMapTap: onMapTap != null
                                 ? () => onMapTap!(subCategory)
                                 : null,
@@ -190,10 +196,12 @@ class SubCategoryCard extends StatelessWidget {
     required this.icon,
     required this.accentColor,
     required this.onTap,
+    required this.onBookTap,
     this.networkIconUrl,
     this.onMapTap,
     this.hasDropLocation = false,
     this.distanceKm = 0.0,
+    this.isSelected = false,
   });
 
   final VehicleSubCategory subCategory;
@@ -201,9 +209,11 @@ class SubCategoryCard extends StatelessWidget {
   final String? networkIconUrl;
   final Color accentColor;
   final VoidCallback onTap;
+  final VoidCallback onBookTap;
   final VoidCallback? onMapTap;
   final bool hasDropLocation;
   final double distanceKm;
+  final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -218,13 +228,21 @@ class SubCategoryCard extends StatelessWidget {
     );
 
     return Material(
-      color: const Color(0xFFFCFCFD),
+      color: isSelected ? accentColor.withValues(alpha: 0.05) : const Color(0xFFFCFCFD),
       borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Padding(
-          padding: EdgeInsets.all(compact ? 14 : 16),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isSelected ? accentColor : Colors.transparent,
+            width: 2.0,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: EdgeInsets.all(compact ? 14 : 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -356,10 +374,7 @@ class SubCategoryCard extends StatelessWidget {
                       icon: Icons.event_seat_rounded,
                       label: '${subCategory.seats} seats',
                     ),
-                  const InfoPill(
-                    icon: Icons.payments_outlined,
-                    label: 'Transparent fare',
-                  ),
+
                   if (onMapTap != null)
                     InkWell(
                       onTap: onMapTap,
@@ -395,7 +410,7 @@ class SubCategoryCard extends StatelessWidget {
                       ),
                     ),
                   InkWell(
-                    onTap: onTap,
+                    onTap: onBookTap,
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -444,6 +459,7 @@ class SubCategoryCard extends StatelessWidget {
                 ],
               ),
             ],
+          ),
           ),
         ),
       ),

@@ -291,7 +291,7 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
                     ),
                   ],
                 ),
-                // padding: EdgeInsets.fromLTRB(14, topPadding + 8, 14, 14),
+                padding: EdgeInsets.fromLTRB(14, topPadding + 8, 14, 14),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
