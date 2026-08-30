@@ -48,6 +48,8 @@ class BookingDataModel {
     this.dropLatitude,
     this.dropLongitude,
     this.categoryName,
+    this.categoryIcon,
+    this.categoryImage,
     this.driverLatitude,
     this.driverLongitude,
     required this.requiresDropLocation,
@@ -74,14 +76,58 @@ class BookingDataModel {
   final String? dropLatitude;
   final String? dropLongitude;
   final String? categoryName;
+  final String? categoryIcon;
+  final String? categoryImage;
   final String? driverLatitude;
   final String? driverLongitude;
   final bool requiresDropLocation;
+
+  String? get effectiveCategoryIconUrl {
+    final icon = categoryIcon?.trim();
+    if (icon != null && icon.isNotEmpty) {
+      return icon;
+    }
+    final img = categoryImage?.trim();
+    if (img != null && img.isNotEmpty) {
+      return img;
+    }
+    return null;
+  }
 
   factory BookingDataModel.fromJson(Map<String, dynamic> json) {
     final requiresDrop = json['requires_drop_location'] is bool
         ? json['requires_drop_location'] as bool
         : (json['requires_drop_location']?.toString() == 'true' || json['drop_location'] != null);
+
+    String? categoryIcon;
+    String? categoryImage;
+
+    if (json['category'] is Map<String, dynamic>) {
+      final cat = json['category'] as Map<String, dynamic>;
+      categoryIcon = cat['icon_url']?.toString() ??
+          cat['icon']?.toString() ??
+          cat['category_icon']?.toString();
+      categoryImage = cat['image_url']?.toString() ??
+          cat['image']?.toString() ??
+          cat['category_image']?.toString();
+    }
+
+    categoryIcon ??= json['category_icon']?.toString() ??
+        json['icon_url']?.toString() ??
+        json['icon']?.toString();
+    categoryImage ??= json['category_image']?.toString() ??
+        json['image_url']?.toString() ??
+        json['image']?.toString();
+
+    if (json['vehicle'] is Map<String, dynamic>) {
+      final veh = json['vehicle'] as Map<String, dynamic>;
+      categoryIcon ??= veh['category_icon']?.toString() ??
+          veh['icon_url']?.toString() ??
+          veh['icon']?.toString();
+      categoryImage ??= veh['category_image']?.toString() ??
+          veh['image_url']?.toString() ??
+          veh['image']?.toString();
+    }
 
     return BookingDataModel(
       id: json['id'] as int?,
@@ -120,6 +166,8 @@ class BookingDataModel {
           (json['category'] is Map<String, dynamic>
               ? json['category']['name']?.toString()
               : null),
+      categoryIcon: categoryIcon,
+      categoryImage: categoryImage,
       driverLatitude: json['driver'] is Map<String, dynamic>
           ? json['driver']['latitude']?.toString()
           : null,
@@ -157,7 +205,7 @@ class BookingDataModel {
 
   static String? _joinParts(List<String?> parts) {
     final values = parts
-        .where((part) => part != null && part!.trim().isNotEmpty)
+        .where((part) => part != null && part.trim().isNotEmpty)
         .map((part) => part!.trim())
         .toList();
 

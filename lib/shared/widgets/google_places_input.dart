@@ -12,6 +12,7 @@ class GooglePlacesInput extends StatefulWidget {
   final IconData prefixIcon;
   final Widget? suffixIcon;
   final VoidCallback? onTap;
+  final VoidCallback? onClear;
 
   const GooglePlacesInput({
     super.key,
@@ -21,6 +22,7 @@ class GooglePlacesInput extends StatefulWidget {
     required this.prefixIcon,
     this.suffixIcon,
     this.onTap,
+    this.onClear,
   });
 
   @override
@@ -42,6 +44,7 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
   void initState() {
     super.initState();
     _focusNode.addListener(_handleFocusChange);
+    widget.controller.addListener(_handleControllerChange);
   }
 
   @override
@@ -50,7 +53,25 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
     _focusNode
       ..removeListener(_handleFocusChange)
       ..dispose();
+    widget.controller.removeListener(_handleControllerChange);
     super.dispose();
+  }
+
+  void _handleControllerChange() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _clearInput() {
+    widget.controller.clear();
+    _debounce?.cancel();
+    setState(() {
+      _isLoading = false;
+      _errorText = null;
+      _suggestions.clear();
+    });
+    widget.onClear?.call();
   }
 
   void _handleFocusChange() {
@@ -285,22 +306,64 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
     return 'Google Places request failed with status $status.';
   }
 
+  Widget? _buildSuffixIcon() {
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    final bool hasText = widget.controller.text.isNotEmpty;
+
+    if (hasText) {
+      final clearButton = IconButton(
+        icon: const Icon(
+          Icons.cancel_rounded,
+          size: 20,
+          color: AppColors.textMuted,
+        ),
+        onPressed: _clearInput,
+        tooltip: 'Clear text',
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+      );
+
+      if (widget.suffixIcon != null) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            clearButton,
+            widget.suffixIcon!,
+          ],
+        );
+      }
+      return clearButton;
+    }
+
+    return widget.suffixIcon;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderSoft, width: 1),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            blurRadius: 12,
-            offset: Offset(0, 4),
-            color: Color.fromARGB(14, 0, 0, 0),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.symmetric(vertical: 0),
+      // decoration: BoxDecoration(
+      //   color: Colors.white,
+      //   borderRadius: BorderRadius.circular(16),
+      //   border: Border.all(color: AppColors.borderSoft, width: 1),
+      //   // boxShadow: const <BoxShadow>[
+      //   //   BoxShadow(
+      //   //     blurRadius: 12,
+      //   //     offset: Offset(0, 4),
+      //   //     color: Color.fromARGB(14, 0, 0, 0),
+      //   //   ),
+      //   // ],
+      // ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -316,16 +379,7 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
                   ? 'Missing GOOGLE_PLACES_API_KEY in .env.'
                   : _errorText,
               prefixIcon: Icon(widget.prefixIcon, color: AppColors.primaryDark),
-              suffixIcon: _isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : widget.suffixIcon,
+              suffixIcon: _buildSuffixIcon(),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,

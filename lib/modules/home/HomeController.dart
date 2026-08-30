@@ -119,6 +119,13 @@ class HomeController extends GetxController {
   BitmapDescriptor? _pickupMarkerIcon;
   BitmapDescriptor? _dropMarkerIcon;
 
+  bool _ignoreCameraIdleGeocode = false;
+  // Counts how many programmatic place-selection animations are in flight.
+  // Camera-idle geocoding is skipped while this is > 0.
+  // onCameraMoveStarted resets it only when the user initiates a real finger
+  // drag (i.e. we have not just started a new programmatic animation).
+  int _placeSelectionLock = 0;
+
   final PolylineService _polylineService = PolylineService();
 
   final TextEditingController originController = TextEditingController();
@@ -367,6 +374,15 @@ class HomeController extends GetxController {
   Future<void> setDropStop(int index, dynamic place) async {
     _ensureInitialDropStop();
     if (index < 0 || index >= dropStops.length) return;
+    _ignoreCameraIdleGeocode = true;
+    _placeSelectionLock++;
+    // Hide the center pin while camera animates to the selected location.
+    isMapViewMode.value = false;
+    isMapDragging.value = false;
+    isReverseGeocodingCenter.value = false;
+    _dragPreviewPoint = null;
+    _dragPreviewTarget = null;
+    _dragRouteDebounce?.cancel();
     final latlng = LatLng(double.parse(place.lat), double.parse(place.lng));
     final addr = place.formattedAddress.isNotEmpty
         ? place.formattedAddress
@@ -461,6 +477,10 @@ class HomeController extends GetxController {
 
   Future<void> setPickup(dynamic place) async {
     locationTarget.value = LocationSelectionTarget.pickup;
+    _ignoreCameraIdleGeocode = true;
+    _placeSelectionLock++;
+    // Hide the center pin while camera animates to the selected location.
+    isMapViewMode.value = false;
     isMapDragging.value = false;
     isReverseGeocodingCenter.value = false;
     _dragPreviewPoint = null;
@@ -484,24 +504,72 @@ class HomeController extends GetxController {
 
   Future<void> setDrop(dynamic place) async {
     locationTarget.value = LocationSelectionTarget.drop;
+    _ignoreCameraIdleGeocode = true;
+    _placeSelectionLock++;
+    // Hide the center pin while camera animates to the selected location.
+    isMapViewMode.value = false;
     isMapDragging.value = false;
     isReverseGeocodingCenter.value = false;
     _dragPreviewPoint = null;
     _dragPreviewTarget = null;
     _dragRouteDebounce?.cancel();
     final latlng = LatLng(double.parse(place.lat), double.parse(place.lng));
+    final addr = place.formattedAddress.isNotEmpty
+        ? place.formattedAddress
+        : place.description;
 
     droplocation.value = latlng;
     dropPlaceName.value = place.name;
-    dropAddress.value = place.formattedAddress.isNotEmpty
-        ? place.formattedAddress
-        : place.description;
+    dropAddress.value = addr;
     dropCoordinates.value = _formatCoordinates(latlng);
-    destController.text = dropAddress.value;
+    destController.text = addr;
+
+    // CRITICAL: sync dropStops[0] so _updateMarkers() can find a non-null
+    // position and render the drop marker.  setDrop() only updates the primary
+    // droplocation fields, but _updateMarkers() iterates dropStops when the
+    // list is non-empty.  Without this sync the marker is never added.
+    _ensureInitialDropStop();
+    if (dropStops.isNotEmpty) {
+      final stop = dropStops[0];
+      stop.location.value = latlng;
+      stop.address.value = addr;
+      stop.placeName.value = place.name;
+      stop.controller.text = addr;
+    }
+
     _updateMarkers();
     await updateRoutePolyline(forceRefresh: true);
     await _focusMapOnSelectedLocations();
     await getVehicleType();
+  }
+
+  void clearPickup() {
+    pickuplocation.value = null;
+    pickupPlaceName.value = '';
+    pickupAddress.value = '';
+    pickupCoordinates.value = '';
+    originController.clear();
+    _updateMarkers();
+    updateRoutePolyline(forceRefresh: true);
+    getVehicleType();
+  }
+
+  void clearDrop() {
+    droplocation.value = null;
+    dropPlaceName.value = '';
+    dropAddress.value = '';
+    dropCoordinates.value = '';
+    destController.clear();
+    if (dropStops.isNotEmpty) {
+      final stop = dropStops[0];
+      stop.location.value = null;
+      stop.address.value = '';
+      stop.placeName.value = '';
+      stop.controller.clear();
+    }
+    _updateMarkers();
+    updateRoutePolyline(forceRefresh: true);
+    getVehicleType();
   }
 
   LatLng _effectivePickupPoint() {
@@ -711,6 +779,9 @@ class HomeController extends GetxController {
       return;
     }
 
+    _ignoreCameraIdleGeocode = true;
+    _placeSelectionLock++;
+
     final LatLng? pickup = pickuplocation.value;
     final LatLng? drop = droplocation.value;
 
@@ -915,8 +986,9 @@ class HomeController extends GetxController {
 
       final status = booking.status?.trim().toLowerCase();
 
-      // Non-active statuses: no_driver_available, expired, completed, cancelled
-      if (status == 'no_driver_available' ||
+      // Non-active or waiting statuses: scheduled, no_driver_available, expired, completed, cancelled
+      if (status == 'scheduled' ||
+          status == 'no_driver_available' ||
           status == 'expired' ||
           status == 'completed' ||
           status == 'cancelled') {
@@ -986,6 +1058,62 @@ class HomeController extends GetxController {
     locationTarget.value = target;
   }
 
+  /// Called when the user taps the search input field while in map-drag mode.
+  /// Resets the dragging flag so the center pin returns to its settled state
+  /// (showing the confirmed address instead of "Pinning…").
+  void onInputFocused() {
+    if (isMapDragging.value) {
+      isMapDragging.value = false;
+    }
+    // Cancel any in-flight drag debounce so stale preview markers are cleared.
+    _dragRouteDebounce?.cancel();
+    _dragPreviewPoint = null;
+    _dragPreviewTarget = null;
+  }
+
+  /// After selecting a place via search, re-centers the camera exactly on the
+  /// selected location so the center pin appears on top of the correct marker.
+  ///
+  /// [setPickup] / [setDrop] call [_focusMapOnSelectedLocations] which zooms
+  /// to fit BOTH pickup and drop in view.  That makes the camera center a
+  /// midpoint — not the selected place — so the center pin would land on the
+  /// wrong spot.  This method corrects that by silently moving the camera to
+  /// the exact selected lat/lng before [isMapViewMode] is re-enabled.
+  Future<void> refocusOnSelectedLocation() async {
+    if (_mapController == null) return;
+
+    LatLng? point;
+    if (locationTarget.value == LocationSelectionTarget.pickup) {
+      point = pickuplocation.value;
+    } else {
+      final idx = activeDropStopIndex.value < dropStops.length
+          ? activeDropStopIndex.value
+          : (dropStops.isNotEmpty ? dropStops.length - 1 : -1);
+      if (idx >= 0 && dropStops.isNotEmpty) {
+        point = dropStops[idx].location.value;
+      }
+      point ??= droplocation.value;
+    }
+
+    if (point == null) return;
+
+    // Use the suppression wrapper so no camera callbacks fire during this move.
+    _placeSelectionLock++;
+    await _runSilentlyWithCameraCallbacks(() async {
+      await _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: point!, zoom: 15.5),
+        ),
+      );
+    });
+    // Update lastCameraPosition so the center pin reads the correct position.
+    lastCameraPosition = CameraPosition(target: point, zoom: 15.5);
+  }
+
+  /// Public wrapper so sibling screens (e.g. LocationSearchScreen) can
+  /// request the map to zoom-to-fit both pickup + drop markers.
+  Future<void> focusMapOnLocations() => _focusMapOnSelectedLocations();
+
   void exitLocationSelection() {
     isMapViewMode.value = false;
     isMapDragging.value = false;
@@ -994,15 +1122,41 @@ class HomeController extends GetxController {
     _dragPreviewPoint = null;
     _dragPreviewTarget = null;
     _dragRouteDebounce?.cancel();
+    // Rebuild markers and route so the parent screen (LocationSearchScreen /
+    // HomeScreen) immediately reflects the confirmed location.
+    _updateMarkers();
+    unawaited(updateRoutePolyline());
+  }
+
+  void onCameraMoveStarted() {
+    // If a programmatic camera animation is in flight (e.g. animating to a
+    // place the user just selected), do NOT touch the place-selection lock or
+    // the drag state.  Resetting the lock here would allow onLocationMapCameraIdle
+    // to treat the end of the animation as a "user drag" and overwrite the
+    // selected location with a random intermediate camera position.
+    if (_suppressedCameraCallbackDepth > 0 || _placeSelectionLock > 0) {
+      return;
+    }
+
+    // Real user finger drag: clear any geocode-skip flag and mark as dragging.
+    _ignoreCameraIdleGeocode = false;
+    if (isMapViewMode.value) {
+      isMapDragging.value = true;
+    }
   }
 
   void onLocationMapCameraMove(CameraPosition position) {
-    if (!isMapViewMode.value || _suppressedCameraCallbackDepth > 0) {
+    // Ignore if map-view mode is off, a programmatic animation is running,
+    // or a place was just selected (lock > 0 means camera is animating to it).
+    if (!isMapViewMode.value ||
+        _suppressedCameraCallbackDepth > 0 ||
+        _placeSelectionLock > 0) {
       return;
     }
     lastCameraPosition = position;
     _dragPreviewPoint = position.target;
     _dragPreviewTarget = locationTarget.value;
+    // Only mark as dragging when the user is physically panning
     if (!isMapDragging.value) {
       isMapDragging.value = true;
     }
@@ -1019,6 +1173,22 @@ class HomeController extends GetxController {
       isReverseGeocodingCenter.value = false;
       return;
     }
+
+    // Camera stopped after a programmatic place-selection animation — skip
+    // geocoding so we don't overwrite the address the user selected.
+    if (_ignoreCameraIdleGeocode || _placeSelectionLock > 0) {
+      _ignoreCameraIdleGeocode = false;
+      if (_placeSelectionLock > 0) _placeSelectionLock--;
+      isMapDragging.value = false;
+      isReverseGeocodingCenter.value = false;
+      _dragPreviewPoint = null;
+      _dragPreviewTarget = null;
+      // Restore the center pin now that the camera has settled on the
+      // exact selected location.
+      isMapViewMode.value = true;
+      return;
+    }
+
     isMapDragging.value = false;
     final targetPoint = lastCameraPosition?.target;
     if (targetPoint == null) return;
@@ -1276,6 +1446,7 @@ class HomeController extends GetxController {
       tagline: vehicle.tagline,
       startingFare: vehicle.startingFare,
       networkIconUrl: vehicle.iconUrl ?? vehicle.imageUrl,
+      dropLocationRequired: vehicle.dropLocationRequired,
       subCategories: vehicle.subCategories
           .map(
             (subCategory) => VehicleSubCategory(

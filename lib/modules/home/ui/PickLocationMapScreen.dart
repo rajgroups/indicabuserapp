@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:indicab/core/config/Config.dart';
@@ -82,6 +84,7 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
                 dropLocation: controller.droplocation.value,
                 onMapCreated: controller.onMapCreated,
                 onCameraMove: controller.onLocationMapCameraMove,
+                onCameraMoveStarted: controller.onCameraMoveStarted,
                 onCameraIdle: controller.onLocationMapCameraIdle,
                 markers: controller.markers,
                 polylines: controller.polylines,
@@ -288,7 +291,7 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
                     ),
                   ],
                 ),
-                padding: EdgeInsets.fromLTRB(14, topPadding + 8, 14, 14),
+                // padding: EdgeInsets.fromLTRB(14, topPadding + 8, 14, 14),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -376,17 +379,44 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
                         prefixIcon: _isPickup
                             ? Icons.radio_button_checked_rounded
                             : Icons.location_on_rounded,
-                        onTap: () => controller.setLocationTarget(_target),
-                        onPlaceSelected: (place) {
+                        onTap: () {
+                          // When user taps the input, stop the dragging animation
+                          // so the center pin returns to settled (non-"Pinning…") state.
+                          controller.onInputFocused();
                           controller.setLocationTarget(_target);
+                        },
+                        onClear: () {
+                          controllerToUse.clear();
                           if (_isPickup) {
-                            controller.setPickup(place);
+                            controller.clearPickup();
                           } else {
                             _stopIndex > 0
+                                ? controller.removeDropStop(_stopIndex)
+                                : controller.clearDrop();
+                          }
+                        },
+                        onPlaceSelected: (place) {
+                          controller.setLocationTarget(_target);
+
+                          // Build the set-location future based on target type.
+                          final Future<void> setFuture;
+                          if (_isPickup) {
+                            setFuture = controller.setPickup(place);
+                          } else {
+                            setFuture = _stopIndex > 0
                                 ? controller.setDropStop(_stopIndex, place)
                                 : controller.setDrop(place);
                           }
-                          controller.isMapViewMode.value = true;
+
+                          // After the location is committed (which also calls
+                          // _focusMapOnSelectedLocations → fit-to-bounds),
+                          // re-center the camera exactly on the selected place so
+                          // the center pin appears right on top of the marker —
+                          // not at the midpoint of pickup+drop.
+                          unawaited(setFuture.then((_) async {
+                            await controller.refocusOnSelectedLocation();
+                            controller.isMapViewMode.value = true;
+                          }));
                         },
                       ),
                     ),

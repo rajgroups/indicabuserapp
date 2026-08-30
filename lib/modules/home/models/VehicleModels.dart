@@ -123,6 +123,7 @@ class VehicleOption {
     required this.startingFare,
     required this.subCategories,
     this.networkIconUrl,
+    this.dropLocationRequired = true,
   });
 
   final int id;
@@ -136,4 +137,5 @@ class VehicleOption {
   /// Full URL to the backend-served category icon/image.
   /// When non-null, UI should prefer this over the [icon] IconData.
   final String? networkIconUrl;
+  final bool dropLocationRequired;
 }

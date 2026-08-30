@@ -21,6 +21,8 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       controller.exitLocationSelection();
       controller.updateRoutePolyline();
+      // If both locations are set, zoom map to fit both markers.
+      controller.focusMapOnLocations();
     });
   }
 
@@ -163,6 +165,7 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
                                   hint: !has,
                                   onTap: () =>
                                       _navigateToMapPicker(target: 'pickup'),
+                                  onClear: has ? controller.clearPickup : null,
                                   accentColor: const Color(0xFF00C853),
                                 );
                               }),
@@ -184,6 +187,7 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
                                   hint: !has,
                                   onTap: () =>
                                       _navigateToMapPicker(target: 'drop'),
+                                  onClear: has ? controller.clearDrop : null,
                                   accentColor: const Color(0xFFE53935),
                                 );
                               }),
@@ -300,12 +304,14 @@ class _LocationField extends StatelessWidget {
   final String text;
   final bool hint;
   final VoidCallback onTap;
+  final VoidCallback? onClear;
   final Color accentColor;
 
   const _LocationField({
     required this.text,
     required this.hint,
     required this.onTap,
+    this.onClear,
     required this.accentColor,
   });
 
@@ -334,11 +340,24 @@ class _LocationField extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                size: 20,
-                color: Color(0xFFB0B3C1),
-              ),
+              if (onClear != null && !hint)
+                GestureDetector(
+                  onTap: onClear,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4),
+                    child: Icon(
+                      Icons.cancel_rounded,
+                      size: 20,
+                      color: Color(0xFFB0B3C1),
+                    ),
+                  ),
+                )
+              else
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: Color(0xFFB0B3C1),
+                ),
             ],
           ),
         ),

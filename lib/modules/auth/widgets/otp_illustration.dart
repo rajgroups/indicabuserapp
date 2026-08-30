@@ -59,24 +59,32 @@ class OtpIllustration extends StatelessWidget {
                             width: 36,
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [Color(0xFFF5B800), Color(0xFFE6A700)],
+                                colors: [AppColors.primary, AppColors.primaryDark],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFF5B800).withValues(alpha: 0.35),
+                                  color: AppColors.primary.withValues(alpha: 0.35),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.local_taxi_rounded,
-                                size: 22,
-                                color: Colors.black,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.asset(
+                                'assets/icon/app_icon.png',
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(
+                                  Icons.local_taxi_rounded,
+                                  size: 22,
+                                  color: Colors.black,
+                                ),
                               ),
                             ),
                           ),
@@ -144,16 +152,15 @@ class OtpIllustration extends StatelessWidget {
                   /// Masked Phone Confirmation Subtitle with Responsive Gesture Edit Button
                   Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          "Code sent to $maskedMobile",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                            fontFamily: 'SF Pro Text',
-                          ),
+                      Text(
+                        "Code sent to $maskedMobile",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          fontFamily: 'SF Pro Text',
                         ),
                       ),
+                      const SizedBox(width: 8),
 
                       /// Edit Mobile Button with Crisp Touch Gesture Recognition
                       GestureDetector(
@@ -161,12 +168,12 @@ class OtpIllustration extends StatelessWidget {
                         onTap: onEditMobile,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
+                            horizontal: 8,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.primary.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(6),
                             border: Border.all(
                               color: const Color(0xFFF5B800).withValues(alpha: 0.4),
                               width: 1,
@@ -177,14 +184,14 @@ class OtpIllustration extends StatelessWidget {
                             children: [
                               Icon(
                                 Icons.edit_rounded,
-                                size: 12,
+                                size: 11,
                                 color: AppColors.primaryDark,
                               ),
-                              SizedBox(width: 4),
+                              SizedBox(width: 3),
                               Text(
                                 "Edit",
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.primaryDark,
                                 ),

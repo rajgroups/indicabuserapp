@@ -7,6 +7,7 @@ class MapViewWidget extends StatelessWidget {
   final Function(LatLng)? onMapTap;
   final Function(GoogleMapController)? onMapCreated;
   final Function(CameraPosition)? onCameraMove;
+  final VoidCallback? onCameraMoveStarted;
   final VoidCallback? onCameraIdle;
   final Set<Marker>? markers;
   final Set<Polyline>? polylines;
@@ -28,6 +29,7 @@ class MapViewWidget extends StatelessWidget {
     this.onMapTap,
     this.onMapCreated,
     this.onCameraMove,
+    this.onCameraMoveStarted,
     this.onCameraIdle,
     this.markers,
     this.polylines,
@@ -54,6 +56,7 @@ class MapViewWidget extends StatelessWidget {
         ),
         onMapCreated: onMapCreated,
         onCameraMove: onCameraMove,
+        onCameraMoveStarted: onCameraMoveStarted,
         onCameraIdle: onCameraIdle,
         onTap: onMapTap,
         markers: markers ?? {},

@@ -16,4 +16,5 @@ class ApiEndpoints {
   static String bookingSos(String bookingNo) => '/bookings/$bookingNo/sos';
   static String bookingReview(String bookingNo) => '/bookings/$bookingNo/review';
   static const checkUpdate = '/check-update';
+  static const updateFcmToken = '/fcm-token';
 }

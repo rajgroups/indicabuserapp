@@ -53,24 +53,32 @@ class LoginIllustration extends StatelessWidget {
                             width: 36,
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [Color(0xFFF5B800), Color(0xFFE6A700)],
+                                colors: [AppColors.primary, AppColors.primaryDark],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFF5B800).withValues(alpha: 0.35),
+                                  color: AppColors.primary.withValues(alpha: 0.35),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.local_taxi_rounded,
-                                size: 22,
-                                color: Colors.black,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.asset(
+                                'assets/icon/app_icon.png',
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(
+                                  Icons.local_taxi_rounded,
+                                  size: 22,
+                                  color: Colors.black,
+                                ),
                               ),
                             ),
                           ),

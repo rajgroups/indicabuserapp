@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:indicab/core/config/Config.dart';
 import 'package:indicab/core/services/SocketService.dart';
 import 'package:indicab/core/services/DriverMarkerAnimator.dart';
 import 'package:indicab/core/services/PolylineService.dart';
@@ -65,6 +68,81 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     return null;
   }
 
+  BitmapDescriptor? _customCategoryMarkerIcon;
+  String? _loadedCategoryIconUrl;
+
+  BitmapDescriptor get _effectiveDriverMarkerIcon {
+    return _customCategoryMarkerIcon ??
+        BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
+  }
+
+  Future<void> _loadCategoryMarkerIconIfNeeded(String? iconUrl) async {
+    if (iconUrl == null || iconUrl.trim().isEmpty) return;
+    final trimmed = iconUrl.trim();
+    if (_loadedCategoryIconUrl == trimmed) return;
+    _loadedCategoryIconUrl = trimmed;
+
+    try {
+      final String fullUrl;
+      final baseOrigin = Uri.parse(AppEnv.apiBaseUrl).origin;
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        fullUrl = trimmed;
+      } else if (trimmed.startsWith('/')) {
+        fullUrl = '$baseOrigin$trimmed';
+      } else {
+        fullUrl = '$baseOrigin/storage/$trimmed';
+      }
+
+      final request = await HttpClient().getUrl(Uri.parse(fullUrl)).timeout(const Duration(seconds: 4));
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final bytes = await response.fold<List<int>>(
+          <int>[],
+          (previous, element) => previous..addAll(element),
+        );
+        if (bytes.isNotEmpty) {
+          final codec = await ui.instantiateImageCodec(
+            Uint8List.fromList(bytes),
+            targetWidth: 110,
+          );
+          final frame = await codec.getNextFrame();
+          final byteData = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+          if (byteData != null && mounted) {
+            setState(() {
+              _customCategoryMarkerIcon = BitmapDescriptor.bytes(
+                byteData.buffer.asUint8List(),
+              );
+            });
+            _updateDriverMarkerIconInPlace();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Custom category marker load error ($iconUrl), using default marker fallback: $e');
+    }
+  }
+
+  void _updateDriverMarkerIconInPlace() {
+    if (!mounted) return;
+    _markers.removeWhere((m) => m.markerId.value == 'driver');
+    if (_driverPosition != null) {
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('driver'),
+          position: _driverAnimator.hasPosition
+              ? _driverAnimator.currentPosition
+              : _driverPosition!,
+          rotation: _driverAnimator.currentBearing,
+          anchor: const Offset(0.5, 0.5),
+          flat: true,
+          icon: _effectiveDriverMarkerIcon,
+          infoWindow: const InfoWindow(title: 'Driver'),
+        ),
+      );
+      setState(() {});
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +150,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         (Get.arguments is Map && Get.arguments['booking_data'] is BookingDataModel
             ? Get.arguments['booking_data'] as BookingDataModel
             : null);
+
+    _loadCategoryMarkerIconIfNeeded(_bookingData?.effectiveCategoryIconUrl);
 
     // If initial status is already completed/cancelled, handle navigation immediately
     final initialStatus = _bookingData?.status?.trim().toLowerCase();
@@ -208,6 +288,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         }
 
         setState(() => _bookingData = bookingData);
+        _loadCategoryMarkerIconIfNeeded(bookingData.effectiveCategoryIconUrl);
         _seedDriverPosition();
         _buildMarkersAndPolyline();
       }
@@ -400,6 +481,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
 
     setState(() => _bookingData = newBooking);
+    _loadCategoryMarkerIconIfNeeded(newBooking.effectiveCategoryIconUrl);
 
     // If OTP is missing, fetch full details with OTP included
     if (newBooking.startOtp == null || newBooking.startOtp!.trim().isEmpty) {
@@ -432,7 +514,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         rotation: bearing,
         anchor: const Offset(0.5, 0.5),
         flat: true,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        icon: _effectiveDriverMarkerIcon,
         infoWindow: const InfoWindow(title: 'Driver'),
       ),
     );
@@ -570,9 +652,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
           rotation: _driverAnimator.currentBearing,
           anchor: const Offset(0.5, 0.5),
           flat: true,
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueBlue,
-          ),
+          icon: _effectiveDriverMarkerIcon,
           infoWindow: const InfoWindow(title: 'Driver'),
         ),
       );
@@ -971,9 +1051,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     final isAccepted = status == 'accepted';
     final isArrived = status == 'arrived';
     final otp = _bookingData?.startOtp;
+    final fare = _bookingData?.estimatedAmount;
 
     return Scaffold(
-      backgroundColor: AppColors.authBackground,
+      backgroundColor: const Color(0xFF0F172A),
       body: Stack(
         children: [
           // -- Google Map --
@@ -1001,12 +1082,13 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
             tiltGesturesEnabled: true,
           ),
 
-          // -- Top Bar --
+          // -- Top Bar Floating Banner (Glassmorphic Modern Header) --
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.only(top: 10, left: 20, right: 20),
+              padding: const EdgeInsets.only(top: 10, left: 16, right: 16),
               child: Row(
                 children: [
+                  // Back Button
                   InkWell(
                     onTap: () {
                       Get.offAllNamed(
@@ -1016,94 +1098,112 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                         },
                       );
                     },
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(18),
                     child: Container(
-                      width: 54,
-                      height: 54,
+                      width: 50,
+                      height: 50,
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(20),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
                         boxShadow: const [
                           BoxShadow(
-                            color: Color(0x16000000),
-                            blurRadius: 18,
-                            offset: Offset(0, 6),
+                            color: Color(0x20000000),
+                            blurRadius: 16,
+                            offset: Offset(0, 4),
                           ),
                         ],
                       ),
                       child: const Icon(
                         Icons.arrow_back_rounded,
-                        color: AppColors.textPrimary,
+                        color: Color(0xFF0F172A),
+                        size: 22,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
+                  // Header Info Floating Pill
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
+                        horizontal: 16,
+                        vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(22),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
                         boxShadow: const [
                           BoxShadow(
-                            color: Color(0x16000000),
-                            blurRadius: 20,
-                            offset: Offset(0, 8),
+                            color: Color(0x20000000),
+                            blurRadius: 18,
+                            offset: Offset(0, 4),
                           ),
                         ],
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                      child: Row(
                         children: [
-                          Text(
-                            'Ride #$_bookingNoLabel',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _statusLabel,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'RIDE #${_bookingNoLabel.toUpperCase()}',
                                   style: const TextStyle(
-                                    fontSize: 16,
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
                                   ),
                                 ),
-                              ),
-                              if (_etaDuration.isNotEmpty) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(
-                                      alpha: 0.15,
-                                    ),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    _etaDuration,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.primaryDark,
-                                    ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _statusLabel,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    color: Color(0xFF0F172A),
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
                               ],
-                            ],
+                            ),
                           ),
+                          if (_etaDuration.isNotEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF7ED),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFF5B800),
+                                  width: 1.2,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.access_time_filled_rounded,
+                                    size: 14,
+                                    color: Color(0xFFD97706),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _etaDistance.isNotEmpty
+                                        ? '$_etaDuration • $_etaDistance'
+                                        : _etaDuration,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFFB45309),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1113,25 +1213,25 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
             ),
           ),
 
-          // -- Floating buttons: Recenter + Navigate --
+          // -- Floating Map Buttons: Recenter + Navigation --
           Positioned(
-            right: 20,
-            bottom: MediaQuery.of(context).size.height * 0.4 + 16,
+            right: 16,
+            bottom: MediaQuery.of(context).size.height * 0.44 + 12,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Recenter button
                 if (_userMovedMap)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 10),
                     child: Container(
                       decoration: const BoxDecoration(
-                        color: AppColors.surface,
+                        color: Colors.white,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Color(0x14000000),
-                            blurRadius: 10,
+                            color: Color(0x20000000),
+                            blurRadius: 12,
                             offset: Offset(0, 4),
                           ),
                         ],
@@ -1140,21 +1240,21 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                         onPressed: _recenterCamera,
                         icon: const Icon(
                           Icons.my_location_rounded,
-                          color: AppColors.primaryDark,
+                          color: Color(0xFF0F172A),
                         ),
-                        tooltip: 'Recenter',
+                        tooltip: 'Recenter Map',
                       ),
                     ),
                   ),
-                // Navigate button
+                // Google Maps Navigation button
                 Container(
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: const Color(0xFFF5B800),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        blurRadius: 14,
+                        color: const Color(0xFFF5B800).withValues(alpha: 0.4),
+                        blurRadius: 16,
                         offset: const Offset(0, 6),
                       ),
                     ],
@@ -1163,48 +1263,44 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                     onPressed: _launchNavigation,
                     icon: const Icon(
                       Icons.navigation_rounded,
-                      color: AppColors.textPrimary,
+                      color: Color(0xFF1E1B4B),
+                      size: 24,
                     ),
-                    tooltip: 'Navigate',
+                    tooltip: 'Open Google Maps',
                   ),
                 ),
               ],
             ),
           ),
 
-          // -- Bottom Sheet --
+          // -- Rapido Style Bottom Sheet --
           DraggableScrollableSheet(
-            initialChildSize: 0.38,
-            minChildSize: 0.38,
-            maxChildSize: 0.85,
+            initialChildSize: 0.44,
+            minChildSize: 0.44,
+            maxChildSize: 0.88,
             builder: (context, scrollController) {
-              return CustomPaint(
-                foregroundPainter: const _TraditionalArchPainter(
-                  color: Color(0xFF1A1A2E),
-                ),
-                child: Container(
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(32)),
-                    border: Border(
-                      top: BorderSide(
-                        color: Color(0xFFF5B800),
-                        width: 2.0,
-                      ),
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(28)),
+                  border: Border(
+                    top: BorderSide(
+                      color: Color(0xFFF5B800),
+                      width: 2.5,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0x14000000),
-                        blurRadius: 28,
-                        offset: Offset(0, -6),
-                      ),
-                    ],
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x1F000000),
+                      blurRadius: 30,
+                      offset: Offset(0, -8),
+                    ),
+                  ],
+                ),
                 child: SingleChildScrollView(
                   controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
                   physics: const BouncingScrollPhysics(),
                   child: SafeArea(
                     top: false,
@@ -1212,468 +1308,141 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Drag indicator handle
+                        Center(
+                          child: Container(
+                            width: 48,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFCBD5E1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
                         if (_isLoading)
                           const Center(
                             child: Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: CircularProgressIndicator(),
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(
+                                color: Color(0xFFF5B800),
+                              ),
                             ),
                           )
                         else ...[
-                          Center(
-                            child: Container(
-                              width: 52,
-                              height: 5,
-                              decoration: BoxDecoration(
-                                color: AppColors.border,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
+                          // 1. Live Phase Status Banner Card
+                          _buildPhaseBanner(isAccepted, isArrived, isStarted),
+                          const SizedBox(height: 18),
 
-                          // -- ETA & Distance Info (when available) --
-                          if (_etaDistance.isNotEmpty ||
-                              _etaDuration.isNotEmpty) ...[
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 14,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFC107).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: const Color(0xFFFFC107).withValues(alpha: 0.4),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.schedule_rounded,
-                                    size: 20,
-                                    color: Color(0xFF1A1A2E),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  if (_etaDuration.isNotEmpty)
-                                    Text(
-                                      _etaDuration,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        color: Color(0xFF1A1A2E),
-                                      ),
-                                    ),
-                                  if (_etaDistance.isNotEmpty &&
-                                      _etaDuration.isNotEmpty)
-                                    const Text(
-                                      '  •  ',
-                                      style: TextStyle(
-                                        color: Color(0xFF1A1A2E),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  if (_etaDistance.isNotEmpty)
-                                    Text(
-                                      _etaDistance,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF1A1A2E),
-                                      ),
-                                    ),
-                                  const Spacer(),
-                                  Text(
-                                    isStarted
-                                        ? 'To destination'
-                                        : 'To pickup',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                          ],
+                          // 2. Rapido Driver & Vehicle Details Card
+                          _buildDriverAndVehicleCard(isStarted),
+                          const SizedBox(height: 20),
 
-                          // -- Driver Info Row --
-                          Row(
-                            children: [
-                              Container(
-                                width: 60,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: AppColors.inputFill,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: const Icon(
-                                  Icons.person_rounded,
-                                  size: 32,
-                                  color: AppColors.primaryDark,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _driverName,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    const Row(
-                                      children: [
-                                        Icon(
-                                          Icons.star_rounded,
-                                          size: 16,
-                                          color: AppColors.primaryDark,
-                                        ),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          '4.9',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      _bookingNoLabel,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _vehicleLabel,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
+                          // 3. Signature Rapido OTP PIN Section (Traditional Arch Frame)
+                          _buildOtpCard(otp, isStarted, isAccepted, isArrived),
+                          const SizedBox(height: 22),
 
-                          // -- Action Buttons --
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => Get.snackbar(
-                                    'Calling',
-                                    'Connecting to driver...',
-                                    backgroundColor: AppColors.surface,
-                                  ),
-                                  icon: const Icon(Icons.call_rounded, color: Colors.white),
-                                  label: const Text(
-                                    'Call Driver',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1A1A2E),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(20),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: _isCancelling
-                                      ? null
-                                      : _handleCancelRide,
-                                  icon: _isCancelling
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.red,
-                                          ),
-                                        )
-                                      : Icon(
-                                          isStarted
-                                              ? Icons.block_rounded
-                                              : Icons.cancel_rounded,
-                                          color: isStarted
-                                              ? Colors.grey
-                                              : Colors.red,
-                                        ),
-                                  label: Text(
-                                    _isCancelling
-                                        ? 'Cancelling...'
-                                        : isStarted
-                                            ? "Can't Cancel"
-                                            : 'Cancel Ride',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 14,
-                                      color: isStarted
-                                          ? Colors.grey
-                                          : Colors.red,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isStarted
-                                        ? AppColors.inputFill
-                                        : Colors.red.withValues(
-                                            alpha: 0.08,
-                                          ),
-                                    foregroundColor: isStarted
-                                        ? Colors.grey
-                                        : Colors.red,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    side: isStarted
-                                        ? null
-                                        : BorderSide(
-                                            color: Colors.red.withValues(alpha: 0.4),
-                                            width: 1.5,
-                                          ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(20),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-
-                          // -- OTP Section --
-                          Text(
-                            isStarted
-                                ? 'Share this OTP to End the Ride'
-                                : isAccepted || isArrived
-                                    ? 'Share this OTP with the driver'
-                                    : 'Ride OTP',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
+                          // 4. Trip Route Timeline Card
+                          const Text(
+                            'TRIP ROUTE',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                              color: Color(0xFF64748B),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          CustomPaint(
-                            foregroundPainter: const _TraditionalArchPainter(
-                              color: Color(0xFFFFC107),
-                            ),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 24,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1A1A2E),
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: const Color(0xFFF5B800),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    isStarted
-                                        ? 'COMPLETION OTP'
-                                        : 'RIDE START OTP',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1.0,
-                                      color: Color(0xFFFFC107),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    otp?.trim().isNotEmpty == true
-                                        ? otp!.trim().split('').join('  ')
-                                        : 'Waiting for OTP...',
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 6,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          const Divider(color: AppColors.borderSoft),
-                          const SizedBox(height: 24),
+                          _buildTripTimeline(),
+                          const SizedBox(height: 20),
 
-                          // -- Trip Route --
-                          const Text(
-                            'Trip Route',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          _RouteStep(
-                            icon: Icons.my_location_rounded,
-                            title: 'Pickup',
-                            subtitle: _pickupLabel,
-                          ),
-                          if (_bookingData?.requiresDropLocation !=
-                              false) ...[
-                            const SizedBox(height: 14),
-                            _RouteStep(
-                              icon: Icons.location_on_rounded,
-                              title: 'Drop',
-                              subtitle: _dropLabel,
-                            ),
+                          // 5. Estimated Fare & Payment Mode Card
+                          if (fare != null && fare > 0) ...[
+                            _buildFareCard(fare),
+                            const SizedBox(height: 20),
                           ],
-                          const SizedBox(height: 28),
 
-                          // -- SOS --
-                          InkWell(
-                            onTap: () =>
-                                Get.to(() => SosScreen(
-                                      bookingNo: widget.bookingNo ??
-                                          _bookingData?.bookingNo ??
-                                          '',
-                                      defaultTriggerType: 'safety_team',
-                                      autoTriggerDefault: true,
-                                    )),
-                            borderRadius: BorderRadius.circular(18),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color:
-                                    Colors.red.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: Colors.red.withValues(
-                                    alpha: 0.18,
-                                  ),
-                                ),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.warning_rounded,
-                                    color: Colors.red,
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Emergency help and support',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                          // 6. Emergency & Safety Section
+                          _buildSafetySection(),
                         ],
                       ],
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
           ),
         ],
       ),
     );
   }
-}
 
-class _RouteStep extends StatelessWidget {
-  const _RouteStep({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
+  // ---------------------------------------------------------------------------
+  // Helper UI Components
+  // ---------------------------------------------------------------------------
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  /// Phase Status Header Banner Card
+  Widget _buildPhaseBanner(bool isAccepted, bool isArrived, bool isStarted) {
+    Color bg;
+    Color border;
+    Color iconColor;
+    IconData icon;
+    String title;
+    String subtitle;
 
-  @override
-  Widget build(BuildContext context) {
+    if (isArrived) {
+      bg = const Color(0xFFECFDF5);
+      border = const Color(0xFF6EE7B7);
+      iconColor = const Color(0xFF059669);
+      icon = Icons.check_circle_rounded;
+      title = 'Driver Has Arrived!';
+      subtitle = 'Your driver is waiting at the pickup point';
+    } else if (isStarted) {
+      bg = const Color(0xFFEFF6FF);
+      border = const Color(0xFF93C5FD);
+      iconColor = const Color(0xFF2563EB);
+      icon = Icons.navigation_rounded;
+      title = 'Trip in Progress';
+      subtitle = 'Heading towards your destination';
+    } else {
+      bg = const Color(0xFFFFFBEB);
+      border = const Color(0xFFFDE68A);
+      iconColor = const Color(0xFFD97706);
+      icon = Icons.near_me_rounded;
+      title = 'Driver En Route';
+      subtitle = 'Driver is on the way to pick you up';
+    }
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.inputFill,
+        color: bg,
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border, width: 1.2),
       ),
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(14),
+              color: iconColor.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: AppColors.primaryDark, size: 22),
+            child: Icon(icon, color: iconColor, size: 22),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: iconColor,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1681,13 +1450,670 @@ class _RouteStep extends StatelessWidget {
                   subtitle,
                   style: const TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: Color(0xFF475569),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Driver Profile & Indian License Plate Vehicle Card
+  Widget _buildDriverAndVehicleCard(bool isStarted) {
+    final vehicleNo = _bookingData?.vehicleNumber?.trim() ?? '';
+    final vehicleModel = _vehicleLabel;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Driver Avatar
+              Stack(
+                children: [
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1B4B),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFF5B800),
+                        width: 2,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      size: 36,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFF5B800),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.star_rounded,
+                            size: 12,
+                            color: Color(0xFFD97706),
+                          ),
+                          SizedBox(width: 2),
+                          Text(
+                            '4.9',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF92400E),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
+
+              // Driver Name & Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            _driverName,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF0F172A),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.verified_rounded,
+                          size: 18,
+                          color: Color(0xFF0284C7),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      vehicleModel,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Rapido Commercial License Plate Badge (Yellow Plate style)
+              if (vehicleNo.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFD54F),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFF1E1B4B),
+                      width: 1.5,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x15000000),
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    vehicleNo.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1E1B4B),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Action Buttons: Call Driver & Cancel Ride
+          Row(
+            children: [
+              // Call Driver Button
+              Expanded(
+                flex: 3,
+                child: ElevatedButton.icon(
+                  onPressed: () => Get.snackbar(
+                    'Calling Driver',
+                    'Connecting your call...',
+                    backgroundColor: const Color(0xFF0F172A),
+                    colorText: Colors.white,
+                    snackPosition: SnackPosition.TOP,
+                  ),
+                  icon: const Icon(
+                    Icons.call_rounded,
+                    color: Color(0xFF10B981),
+                    size: 20,
+                  ),
+                  label: const Text(
+                    'Call Driver',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF101424),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Cancel Ride Button
+              Expanded(
+                flex: 2,
+                child: OutlinedButton(
+                  onPressed:
+                      (_isCancelling || isStarted) ? null : _handleCancelRide,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(
+                      color: isStarted
+                          ? const Color(0xFFCBD5E1)
+                          : const Color(0xFFFCA5A5),
+                      width: 1.5,
+                    ),
+                    backgroundColor: isStarted
+                        ? const Color(0xFFF1F5F9)
+                        : const Color(0xFFFEF2F2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _isCancelling
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFFEF4444),
+                          ),
+                        )
+                      : Text(
+                          isStarted ? "In Ride" : "Cancel",
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            color: isStarted
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFFDC2626),
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Signature Rapido OTP Card with Traditional Golden Arch Framing & Digit Boxes
+  Widget _buildOtpCard(
+    String? otp,
+    bool isStarted,
+    bool isAccepted,
+    bool isArrived,
+  ) {
+    final rawOtp = otp?.trim() ?? '';
+    final digits = rawOtp.isNotEmpty
+        ? rawOtp.split('')
+        : ['•', '•', '•', '•'];
+
+    return CustomPaint(
+      foregroundPainter: const _TraditionalArchPainter(
+        color: Color(0xFFFFC107),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF101424),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFFF5B800),
+            width: 1.8,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33000000),
+              blurRadius: 16,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.lock_clock_rounded,
+                  size: 16,
+                  color: Color(0xFFFFC107),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isStarted
+                      ? 'SHARE THIS OTP TO COMPLETE RIDE'
+                      : 'SHARE THIS PIN WITH YOUR DRIVER',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                    color: Color(0xFFFFC107),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // OTP Digit Boxes
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: digits.map((digit) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                  width: 48,
+                  height: 56,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFF5B800).withValues(alpha: 0.6),
+                      width: 1.5,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x22000000),
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    digit,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+
+            if (rawOtp.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: rawOtp));
+                  Get.snackbar(
+                    'OTP Copied',
+                    'Ride PIN $rawOtp copied to clipboard',
+                    backgroundColor: const Color(0xFFF5B800),
+                    colorText: const Color(0xFF1E1B4B),
+                    snackPosition: SnackPosition.TOP,
+                    duration: const Duration(seconds: 2),
+                  );
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.copy_rounded,
+                        size: 13,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Tap to copy PIN $rawOtp',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Trip Route Connected Nodes Timeline
+  Widget _buildTripTimeline() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          // Pickup Node
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF10B981),
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 2,
+                    height: 34,
+                    color: const Color(0xFFCBD5E1),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'PICKUP LOCATION',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.8,
+                        color: Color(0xFF10B981),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _pickupLabel,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Drop Node
+          if (_bookingData?.requiresDropLocation != false) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFEF4444),
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'DESTINATION',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                          color: Color(0xFFEF4444),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _dropLabel,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Estimated Fare & Payment Mode Card
+  Widget _buildFareCard(num fare) {
+    final paymentType =
+        _bookingData?.bookingMode?.trim().toUpperCase() ?? 'CASH';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'ESTIMATED FARE',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '₹${fare.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFCBD5E1)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.payments_rounded,
+                  size: 16,
+                  color: Color(0xFF10B981),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  paymentType == 'CASH' ? 'Pay Cash' : paymentType,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Emergency SOS & Safety Section
+  Widget _buildSafetySection() {
+    return InkWell(
+      onTap: () => Get.to(() => SosScreen(
+            bookingNo: widget.bookingNo ?? _bookingData?.bookingNo ?? '',
+            defaultTriggerType: 'safety_team',
+            autoTriggerDefault: true,
+          )),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFFFCA5A5),
+            width: 1.2,
+          ),
+        ),
+        child: const Row(
+          children: [
+            Icon(
+              Icons.shield_rounded,
+              color: Color(0xFFDC2626),
+              size: 22,
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Safety & Emergency SOS',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF991B1B),
+                    ),
+                  ),
+                  SizedBox(height: 1),
+                  Text(
+                    '24/7 Support & emergency assistance',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFFB91C1C),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFFDC2626),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1700,61 +2126,41 @@ class _TraditionalArchPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Navy paint for outer curves
-    final navyPaint = Paint()
-      ..color = const Color(0xFF1A1A2E).withValues(alpha: 0.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    // Gold/Amber paint for inner curves and details
     final goldPaint = Paint()
-      ..color = const Color(0xFFF5B800).withValues(alpha: 0.9)
+      ..color = color.withValues(alpha: 0.95)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
+      ..strokeWidth = 1.6;
 
     final fillGold = Paint()
-      ..color = const Color(0xFFF5B800)
+      ..color = color
       ..style = PaintingStyle.fill;
 
     // --- Top-Right Corner Motif ---
     final trPath = Path();
-    trPath.moveTo(size.width - 45, 0);
-    trPath.quadraticBezierTo(size.width - 25, 0, size.width - 25, 20);
-    trPath.quadraticBezierTo(size.width - 25, 40, size.width, 40);
-    canvas.drawPath(trPath, navyPaint);
+    trPath.moveTo(size.width - 40, 0);
+    trPath.quadraticBezierTo(size.width - 20, 0, size.width - 20, 20);
+    trPath.quadraticBezierTo(size.width - 20, 35, size.width, 35);
+    canvas.drawPath(trPath, goldPaint);
 
-    final trPathInner = Path();
-    trPathInner.moveTo(size.width - 30, 0);
-    trPathInner.quadraticBezierTo(size.width - 15, 0, size.width - 15, 15);
-    trPathInner.quadraticBezierTo(size.width - 15, 28, size.width, 28);
-    canvas.drawPath(trPathInner, goldPaint);
-
-    // Decorative Lotus/Accent Petals in Top-Right
-    canvas.drawCircle(Offset(size.width - 15, 15), 3.0, fillGold);
-    canvas.drawCircle(Offset(size.width - 25, 6), 2.0, fillGold);
-    canvas.drawCircle(Offset(size.width - 6, 25), 2.0, fillGold);
+    canvas.drawCircle(Offset(size.width - 16, 16), 3.0, fillGold);
+    canvas.drawCircle(Offset(size.width - 26, 6), 1.8, fillGold);
+    canvas.drawCircle(Offset(size.width - 6, 26), 1.8, fillGold);
 
     // --- Bottom-Left Corner Motif ---
     final blPath = Path();
-    blPath.moveTo(0, size.height - 40);
-    blPath.quadraticBezierTo(25, size.height - 40, 25, size.height - 20);
-    blPath.quadraticBezierTo(25, size.height, 45, size.height);
-    canvas.drawPath(blPath, navyPaint);
+    blPath.moveTo(0, size.height - 35);
+    blPath.quadraticBezierTo(20, size.height - 35, 20, size.height - 20);
+    blPath.quadraticBezierTo(20, size.height, 40, size.height);
+    canvas.drawPath(blPath, goldPaint);
 
-    final blPathInner = Path();
-    blPathInner.moveTo(0, size.height - 28);
-    blPathInner.quadraticBezierTo(15, size.height - 28, 15, size.height - 15);
-    blPathInner.quadraticBezierTo(15, size.height, 30, size.height);
-    canvas.drawPath(blPathInner, goldPaint);
-
-    // Decorative Accent Dots in Bottom-Left
-    canvas.drawCircle(Offset(15, size.height - 15), 3.0, fillGold);
-    canvas.drawCircle(Offset(6, size.height - 25), 2.0, fillGold);
-    canvas.drawCircle(Offset(25, size.height - 6), 2.0, fillGold);
+    canvas.drawCircle(Offset(16, size.height - 16), 3.0, fillGold);
+    canvas.drawCircle(Offset(6, size.height - 26), 1.8, fillGold);
+    canvas.drawCircle(Offset(26, size.height - 6), 1.8, fillGold);
   }
 
   @override
   bool shouldRepaint(covariant _TraditionalArchPainter oldDelegate) =>
       oldDelegate.color != color;
 }
+
 

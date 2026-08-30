@@ -60,13 +60,21 @@ class AppTheme {
       ),
     ),
 
+    // ⏳ Progress Indicators
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppColors.primary,
+      linearTrackColor: AppColors.lightGrey,
+      circularTrackColor: AppColors.borderSoft,
+    ),
+
     // 🧠 Typography
     textTheme: const TextTheme(
-      headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-      headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
-      bodyLarge: TextStyle(fontSize: 16),
-      bodyMedium: TextStyle(fontSize: 14),
+      headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.darkSlate),
+      headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: AppColors.darkSlate),
+      bodyLarge: TextStyle(fontSize: 16, color: AppColors.textPrimary),
+      bodyMedium: TextStyle(fontSize: 14, color: AppColors.textSecondary),
     ),
+    visualDensity: VisualDensity.adaptivePlatformDensity,
   );
 
   /// 🌚 Dark Theme (optional but recommended)
@@ -81,10 +89,18 @@ class AppTheme {
       brightness: Brightness.dark,
     ),
 
-    appBarTheme: AppBarTheme(
+    appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.black,
       elevation: 0,
       centerTitle: true,
     ),
+
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppColors.primary,
+      linearTrackColor: Color(0xFF334155),
+    ),
+
+    visualDensity: VisualDensity.adaptivePlatformDensity,
   );
 }
+

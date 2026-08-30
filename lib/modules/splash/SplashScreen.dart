@@ -1,11 +1,17 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:indicab/core/config/Config.dart';
+import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/constants/Keys.dart';
+import 'package:indicab/core/network/client.dart';
+import 'package:indicab/core/repository/AppUpdateRepository.dart';
 import 'package:indicab/core/routes/names.dart';
+import 'package:indicab/core/services/SecureStorageService.dart';
 import 'package:indicab/core/services/StorageService.dart';
+import 'package:indicab/shared/widgets/app_update_dialog.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,12 +22,17 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
+  bool _isNavigating = false;
+  Timer? _failsafeTimer;
+
   late final AnimationController _mainAnimController;
   late final Animation<double> _fadeAnim;
   late final Animation<double> _scaleAnim;
-  late final AnimationController _rotationController;
+  late final AnimationController _pulseController;
 
   final StorageService _storage = StorageService();
+  final SecureStorageService _secureStorage = SecureStorageService();
+  final ApiClient _client = ApiClient();
 
   @override
   void initState() {
@@ -29,37 +40,113 @@ class _SplashScreenState extends State<SplashScreen>
 
     _mainAnimController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1000),
     );
 
     _fadeAnim = CurvedAnimation(
       parent: _mainAnimController,
-      curve: Curves.easeIn,
+      curve: Curves.easeOut,
     );
 
-    _scaleAnim = Tween<double>(begin: 0.82, end: 1.0).animate(
+    _scaleAnim = Tween<double>(begin: 0.90, end: 1.0).animate(
       CurvedAnimation(
         parent: _mainAnimController,
-        curve: Curves.elasticOut,
+        curve: Curves.easeOutBack,
       ),
     );
 
-    _rotationController = AnimationController(
+    _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 14),
-    )..repeat();
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
 
     _mainAnimController.forward();
 
-    _navigateToNextScreen();
+    // ── Failsafe Timer ────────────────────────────────────────────────────────
+    final int delaySec = AppEnv.splashDelaySeconds;
+    _failsafeTimer = Timer(Duration(seconds: delaySec + 5), () {
+      _performNavigation(false);
+    });
+
+    _checkAuthAndNavigate();
   }
 
-  Future<void> _navigateToNextScreen() async {
-    await Future.delayed(const Duration(milliseconds: 2500));
-    if (!mounted) return;
+  Future<void> _checkAuthAndNavigate() async {
+    final startTime = DateTime.now();
+    bool isAuthorized = false;
 
-    final token = _storage.read(StorageKeys.token);
-    if (token is String && token.trim().isNotEmpty) {
+    try {
+      // 1. Check for app update
+      try {
+        final updateRepo = AppUpdateRepository(_client);
+        final updateInfo = await updateRepo.checkUpdate(appVersion: '1.0.0');
+
+        if (updateInfo.updateAvailable && mounted) {
+          await AppUpdateDialog.show(
+            context: context,
+            updateModel: updateInfo,
+            onDismiss: () {},
+          );
+          if (updateInfo.forceUpdate) {
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('[Splash] Update check error (continuing): $e');
+      }
+
+      // 2. Resolve authentication token
+      final token = await _readStoredToken();
+      isAuthorized = token != null && token.trim().isNotEmpty;
+
+      if (isAuthorized) {
+        _client.setTokens(token);
+      }
+    } catch (e) {
+      debugPrint('[Splash] Auth check error: $e');
+      isAuthorized = false;
+    } finally {
+      // Ensure splash remains visible for configured delay duration
+      final elapsed = DateTime.now().difference(startTime);
+      final targetDuration = Duration(seconds: AppEnv.splashDelaySeconds);
+      final remaining = targetDuration - elapsed;
+      if (remaining > Duration.zero) {
+        await Future.delayed(remaining);
+      }
+
+      _performNavigation(isAuthorized);
+    }
+  }
+
+  Future<String?> _readStoredToken() async {
+    try {
+      final secureToken = await _secureStorage.read(StorageKeys.token);
+      if (secureToken != null && secureToken.isNotEmpty) {
+        final cachedToken = _storage.read(StorageKeys.token);
+        if (cachedToken != secureToken) {
+          _storage.write(StorageKeys.token, secureToken);
+        }
+        return secureToken;
+      }
+    } catch (e) {
+      debugPrint('[Splash] Secure storage read error: $e');
+    }
+
+    final cachedToken = _storage.read(StorageKeys.token);
+    if (cachedToken is String && cachedToken.isNotEmpty) {
+      await _secureStorage.write(StorageKeys.token, cachedToken);
+      return cachedToken;
+    }
+
+    return null;
+  }
+
+  void _performNavigation(bool isAuthorized) {
+    if (!mounted || _isNavigating) return;
+    _isNavigating = true;
+    _failsafeTimer?.cancel();
+
+    if (isAuthorized) {
       Get.offAllNamed(RouteNames.home);
     } else {
       Get.offAllNamed(RouteNames.login);
@@ -68,299 +155,337 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    _isNavigating = true;
+    _failsafeTimer?.cancel();
     _mainAnimController.dispose();
-    _rotationController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
-      body: Stack(
-        children: [
-          // ── Background Glow Blobs ─────────────────────────────────────────
-          Positioned(
-            top: -60,
-            right: -60,
-            child: Container(
-              width: 240,
-              height: 240,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF00C853).withValues(alpha: 0.12),
-                    blurRadius: 70,
-                    spreadRadius: 30,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -80,
-            left: -40,
-            child: Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFFB300).withValues(alpha: 0.10),
-                    blurRadius: 80,
-                    spreadRadius: 40,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Center Branding & Content ──────────────────────────────────────
-          Center(
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: ScaleTransition(
-                scale: _scaleAnim,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // ── Animated Traditional Aura Ring + App Emblem ─────────
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Rotating Traditional Mandala Ring
-                        AnimatedBuilder(
-                          animation: _rotationController,
-                          builder: (context, child) {
-                            return Transform.rotate(
-                              angle: _rotationController.value * math.pi * 2,
-                              child: CustomPaint(
-                                size: const Size(160, 160),
-                                painter: _TraditionalMandalaPainter(),
-                              ),
-                            );
-                          },
-                        ),
-
-                        // Center Emblem Box
-                        Container(
-                          width: 104,
-                          height: 104,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF00C853), Color(0xFF009624)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(32),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF00C853).withValues(alpha: 0.40),
-                                blurRadius: 28,
-                                offset: const Offset(0, 12),
-                              ),
-                            ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: Stack(
+          children: [
+            // ── Dual Radial Gradient Pulse Background Accents ───────────────────
+            Positioned(
+              top: -80,
+              right: -80,
+              child: AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  return Container(
+                    width: 300,
+                    height: 300,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppColors.primary.withValues(
+                            alpha: 0.08 + _pulseController.value * 0.05,
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.local_taxi_rounded,
-                              size: 54,
+                          Colors.white.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Positioned(
+              bottom: -100,
+              left: -80,
+              child: AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  return Container(
+                    width: 320,
+                    height: 320,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppColors.brandGreen.withValues(
+                            alpha: 0.06 + (1 - _pulseController.value) * 0.04,
+                          ),
+                          Colors.white.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // ── Main Content & Rapido Yellow Branding ────────────────────
+            Center(
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: ScaleTransition(
+                  scale: _scaleAnim,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ── Corporate Emblem Container ──────────────────────────
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Pulse Ambient Glow Ring (Yellow Rapido Accent)
+                          AnimatedBuilder(
+                            animation: _pulseController,
+                            builder: (context, child) {
+                              final double pulseScale =
+                                  1.0 + (_pulseController.value * 0.08);
+                              return Transform.scale(
+                                scale: pulseScale,
+                                child: Container(
+                                  width: 128,
+                                  height: 128,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.12,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+
+                          // Outer Ring Accent
+                          Container(
+                            width: 114,
+                            height: 114,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.primary.withValues(alpha: 0.35),
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+
+                          // App Icon Card Container
+                          Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
                               color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // ── Brand Title ──────────────────────────────────────────
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Indica',
-                          style: TextStyle(
-                            fontSize: 38,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFB300),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'B',
-                            style: TextStyle(
-                              fontSize: 34,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF1A1A2E),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // ── Traditional Accent Divider ───────────────────────────
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 1.5,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.transparent,
-                                const Color(0xFF00C853).withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(26),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(alpha: 0.28),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 10),
+                                  spreadRadius: 2,
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
                               ],
+                              border: Border.all(
+                                color: AppColors.lightGrey,
+                                width: 1.2,
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Image.asset(
+                                  'assets/icon/app_icon.png',
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(
+                                    Icons.local_taxi_rounded,
+                                    size: 52,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Icon(
-                            Icons.star_rounded,
-                            size: 12,
-                            color: Color(0xFFFFB300),
-                          ),
-                        ),
-                        Container(
-                          width: 32,
-                          height: 1.5,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                const Color(0xFF00C853).withValues(alpha: 0.8),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // ── Tagline ──────────────────────────────────────────────
-                    Text(
-                      'Your Trusted Ride, Every Time',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.70),
-                        letterSpacing: 0.8,
+                        ],
                       ),
-                    ),
-                  ],
+
+                      const SizedBox(height: 32),
+
+                      // ── Brand Title with Rapido Yellow Badge ──────────────────
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Indica',
+                            style: TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.darkSlate,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(alpha: 0.40),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: const Text(
+                              'B',
+                              style: TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.darkSlate,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // ── Accent Line Divider ───────────────────────────
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 1.5,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.transparent,
+                                  AppColors.primary.withValues(alpha: 0.8),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child: Icon(
+                              Icons.square_rounded,
+                              size: 6,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          Container(
+                            width: 36,
+                            height: 1.5,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.primary.withValues(alpha: 0.8),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // ── Corporate Tagline ──────────────────────────────────
+                      const Text(
+                        'Your Trusted Ride, Every Time',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.subtleSlate,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // ── Bottom Loading Bar & India Badge ───────────────────────────────
-          Positioned(
-            bottom: 44,
-            left: 0,
-            right: 0,
-            child: Column(
-              children: [
-                SizedBox(
-                  width: 140,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(99),
-                    child: LinearProgressIndicator(
-                      minHeight: 3,
-                      backgroundColor: Colors.white.withValues(alpha: 0.12),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Color(0xFF00C853),
+            // ── Bottom Loading Progress & Footer ─────────────────
+            Positioned(
+              bottom: 48,
+              left: 0,
+              right: 0,
+              child: Column(
+                children: [
+                  const Text(
+                    'Initializing app...',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.subtleSlate,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Sleek Progress Indicator in Rapido Yellow
+                  SizedBox(
+                    width: 140,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(99),
+                      child: const LinearProgressIndicator(
+                        minHeight: 3.5,
+                        backgroundColor: AppColors.lightGrey,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(AppColors.primary),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'MADE WITH ',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFB0B3C1),
-                        letterSpacing: 1.2,
+                  const SizedBox(height: 24),
+
+                  // Corporate Footer Branding
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text(
+                        'MADE WITH ',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.subtleSlate,
+                          letterSpacing: 1.2,
+                        ),
                       ),
-                    ),
-                    const Text(
-                      '❤️',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                    const Text(
-                      ' IN INDIA',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFFFB300),
-                        letterSpacing: 1.2,
+                      Text(
+                        '❤️',
+                        style: TextStyle(fontSize: 11),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      Text(
+                        ' IN INDIA',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primaryDark,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-}
-
-// ── Traditional Mandala Decorative Aura Painter ──────────────────────────────
-class _TraditionalMandalaPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..color = const Color(0xFF00C853).withValues(alpha: 0.35);
-
-    final goldPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..color = const Color(0xFFFFB300).withValues(alpha: 0.40);
-
-    // Outer circle
-    canvas.drawCircle(center, radius - 2, linePaint);
-
-    // Inner dashed circle
-    canvas.drawCircle(center, radius - 12, goldPaint);
-
-    // 8 Traditional Lotus / Mandala Petals
-    const numPetals = 8;
-    for (var i = 0; i < numPetals; i++) {
-      final angle = (i * 2 * math.pi) / numPetals;
-      final x1 = center.dx + (radius - 2) * math.cos(angle);
-      final y1 = center.dy + (radius - 2) * math.sin(angle);
-      canvas.drawCircle(
-        Offset(x1, y1),
-        3,
-        Paint()..color = const Color(0xFFFFB300).withValues(alpha: 0.70),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

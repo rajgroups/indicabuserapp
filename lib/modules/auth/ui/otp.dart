@@ -2,12 +2,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/layout/app.dart';
 import 'package:indicab/modules/auth/widgets/otp_illustration.dart';
 
 import '../AuthController.dart';
+
+// ─── Rapido Driver Palette & Fonts ───────────────────────────────────────────
+const _kNavy  = Color(0xFF1A1A2E);
+const _kGreen = Color(0xFF00C853);
+const _kBg    = Color(0xFFF5F6FA);
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
@@ -124,7 +128,7 @@ class _OtpScreenState extends State<OtpScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScreen(
-      backgroundColor: AppColors.authBackground,
+      backgroundColor: _kBg,
       resizeToAvoidBottomInset: true,
       child: SafeArea(
         child: LayoutBuilder(
@@ -141,32 +145,26 @@ class _OtpScreenState extends State<OtpScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        /// Top Row: Back Button
+                        /// Top Row: Back Button (Matching OtpView in Driver App)
                         Row(
                           children: [
-                            Container(
-                              height: 40,
-                              width: 40,
-                              decoration: BoxDecoration(
-                                color: AppColors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: AppColors.border),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Color(0x0C000000),
-                                    blurRadius: 10,
-                                    offset: Offset(0, 3),
+                            Material(
+                              color: const Color(0xFFF3F4F6),
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                onTap: _goBackToLogin,
+                                customBorder: const CircleBorder(),
+                                child: const SizedBox(
+                                  width: 42,
+                                  height: 42,
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.arrow_back_rounded,
+                                      color: _kNavy,
+                                      size: 20,
+                                    ),
                                   ),
-                                ],
-                              ),
-                              child: IconButton(
-                                padding: EdgeInsets.zero,
-                                icon: const Icon(
-                                  Icons.arrow_back_rounded,
-                                  color: AppColors.textPrimary,
-                                  size: 20,
                                 ),
-                                onPressed: _goBackToLogin,
                               ),
                             ),
                           ],
@@ -174,7 +172,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
                         const SizedBox(height: 12),
 
-                        /// Top Hero Banner Card with Edit Action Callback
+                        /// Top Hero Banner Card
                         OtpIllustration(
                           maskedMobile: _maskedMobile(),
                           onEditMobile: _goBackToLogin,
@@ -182,285 +180,250 @@ class _OtpScreenState extends State<OtpScreen> {
 
                         const SizedBox(height: 16),
 
-                        /// Main Form Card (Stretches to fill full available vertical height)
+                        /// Main Form Card (Matching OtpView in Driver App)
                         Expanded(
-                          child: CustomPaint(
-                            foregroundPainter: const _TraditionalArchPainter(
-                              color: Color(0xFF1A1A2E),
-                            ),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: AppColors.borderSoft,
-                                  width: 1.2,
-                                ),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Color(0x0C000000),
-                                    blurRadius: 20,
-                                    offset: Offset(0, 8),
-                                  ),
-                                ],
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: const Color(0xFFEEEFF3),
+                                width: 1.2,
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        "One-Time Password",
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.textPrimary,
-                                          fontFamily: 'SF Pro Text',
-                                        ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _kNavy.withValues(alpha: 0.06),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      "One-Time Password",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: _kNavy,
                                       ),
-                                      const SizedBox(height: 16),
+                                    ),
+                                    const SizedBox(height: 16),
 
-                                      /// 4 OTP Digit Input Row
-                                      Row(
-                                        children: List.generate(
-                                          4,
-                                          (index) => Expanded(
-                                            child: Padding(
-                                              padding: EdgeInsets.only(
-                                                right: index == 3 ? 0 : 8,
-                                              ),
-                                              child: _OtpDigitField(
-                                                controller:
-                                                    _digitControllers[index],
-                                                focusNode: _focusNodes[index],
-                                                onChanged: (value) =>
-                                                    _onDigitChanged(value, index),
-                                              ),
+                                    /// 4 OTP Digit Input Row
+                                    Row(
+                                      children: List.generate(
+                                        4,
+                                        (index) => Expanded(
+                                          child: Padding(
+                                            padding: EdgeInsets.only(
+                                              right: index == 3 ? 0 : 8,
+                                            ),
+                                            child: _OtpDigitField(
+                                              controller:
+                                                  _digitControllers[index],
+                                              focusNode: _focusNodes[index],
+                                              onChanged: (value) =>
+                                                  _onDigitChanged(value, index),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
+                                ),
 
-                                  Column(
-                                    children: [
-                                      const SizedBox(height: 20),
+                                Column(
+                                  children: [
+                                    const SizedBox(height: 20),
 
-                                      /// Verify & Proceed Button
-                                      Obx(
-                                        () => SizedBox(
-                                          width: double.infinity,
-                                          height: 48,
-                                          child: ElevatedButton(
-                                            onPressed: controller.isLoading.value
-                                                ? null
-                                                : () {
-                                                    _syncOtpValue();
-                                                    controller.verifyOtp();
-                                                  },
-                                            style: ElevatedButton.styleFrom(
-                                              padding: EdgeInsets.zero,
-                                              elevation: 0,
-                                              backgroundColor: Colors.transparent,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(24),
-                                              ),
+                                    /// Verify & Proceed Button — Navy CTA with Brand Green Shield Icon
+                                    Obx(
+                                      () => SizedBox(
+                                        width: double.infinity,
+                                        height: 48,
+                                        child: ElevatedButton(
+                                          onPressed: controller.isLoading.value
+                                              ? null
+                                              : () {
+                                                  _syncOtpValue();
+                                                  controller.verifyOtp();
+                                                },
+                                          style: ElevatedButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            elevation: 0,
+                                            backgroundColor: Colors.transparent,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(24),
                                             ),
-                                            child: Ink(
-                                              decoration: BoxDecoration(
-                                                gradient: controller.isLoading.value
-                                                    ? null
-                                                    : const LinearGradient(
-                                                        colors: [
-                                                          Color(0xFF1A1A2E),
-                                                          Color(0xFF2D2D4E),
-                                                        ],
-                                                        begin: Alignment.centerLeft,
-                                                        end:
-                                                            Alignment.centerRight,
+                                          ),
+                                          child: Ink(
+                                            decoration: BoxDecoration(
+                                              color: controller.isLoading.value
+                                                  ? const Color(0xFFEEEFF3)
+                                                  : Colors.white,
+                                              borderRadius: BorderRadius.circular(
+                                                24,
+                                              ),
+                                              border: Border.all(
+                                                color: const Color(0xFFEEEFF3),
+                                                width: 1.2,
+                                              ),
+                                              boxShadow: controller.isLoading.value
+                                                  ? null
+                                                  : [
+                                                      BoxShadow(
+                                                        color: _kNavy.withValues(alpha: 0.12),
+                                                        blurRadius: 12,
+                                                        offset: const Offset(0, 4),
                                                       ),
-                                                color: controller.isLoading.value
-                                                    ? AppColors.border
-                                                    : null,
-                                                borderRadius: BorderRadius.circular(
-                                                  24,
-                                                ),
-                                                boxShadow: controller
-                                                        .isLoading.value
-                                                    ? null
-                                                    : [
-                                                        BoxShadow(
-                                                          color: const Color(
-                                                            0xFF1A1A2E,
-                                                          ).withValues(alpha: 0.30),
-                                                          blurRadius: 12,
-                                                          offset: const Offset(
-                                                            0,
-                                                            4,
+                                                    ],
+                                            ),
+                                            child: Container(
+                                              alignment: Alignment.center,
+                                              child: controller.isLoading.value
+                                                  ? const SizedBox(
+                                                      height: 20,
+                                                      width: 20,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2.2,
+                                                        color: _kNavy,
+                                                      ),
+                                                    )
+                                                  : const Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment.center,
+                                                      children: [
+                                                        Text(
+                                                          "Verify & Proceed",
+                                                          style: TextStyle(
+                                                            fontSize: 16,
+                                                            fontWeight: FontWeight.w800,
+                                                            color: _kNavy,
+                                                            letterSpacing: 0.3,
                                                           ),
                                                         ),
                                                       ],
-                                              ),
-                                              child: Container(
-                                                alignment: Alignment.center,
-                                                child: controller.isLoading.value
-                                                    ? const SizedBox(
-                                                        height: 20,
-                                                        width: 20,
-                                                        child:
-                                                            CircularProgressIndicator(
-                                                              strokeWidth: 2.2,
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                      )
-                                                    : const Row(
-                                                        mainAxisAlignment:
-                                                            MainAxisAlignment
-                                                                .center,
-                                                        children: [
-                                                          Icon(
-                                                            Icons
-                                                                .verified_user_rounded,
-                                                            color: Colors.white,
-                                                            size: 18,
-                                                          ),
-                                                          SizedBox(width: 6),
-                                                          Text(
-                                                            "Verify & Proceed",
-                                                            style: TextStyle(
-                                                              fontSize: 16,
-                                                              fontWeight:
-                                                                  FontWeight.w800,
-                                                              color: Colors.white,
-                                                              letterSpacing: 0.3,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                              ),
+                                                    ),
                                             ),
                                           ),
                                         ),
                                       ),
+                                    ),
 
-                                      const SizedBox(height: 16),
+                                    const SizedBox(height: 16),
 
-                                      /// Interactive Resend Countdown Box
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFFBF0),
-                                          borderRadius: BorderRadius.circular(16),
-                                          border: Border.all(
-                                            color: const Color(0xFFF7E6B8),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              height: 32,
-                                              width: 32,
-                                              decoration: BoxDecoration(
-                                                color: const Color(
-                                                  0xFFF5B800,
-                                                ).withValues(alpha: 0.2),
-                                                borderRadius: BorderRadius.circular(
-                                                  10,
-                                                ),
-                                              ),
-                                              child: const Icon(
-                                                Icons.timer_outlined,
-                                                color: AppColors.primaryDark,
-                                                size: 17,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  const Text(
-                                                    "Didn't receive code?",
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: AppColors.textPrimary,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 1),
-                                                  Text(
-                                                    _secondsRemaining > 0
-                                                        ? "Resend available in 00:${_secondsRemaining.toString().padLeft(2, '0')}"
-                                                        : "You can resend a new OTP now",
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: _secondsRemaining > 0
-                                                          ? AppColors.textSecondary
-                                                          : const Color(0xFF00C853),
-                                                      fontWeight:
-                                                          _secondsRemaining > 0
-                                                              ? FontWeight.w400
-                                                              : FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            TextButton(
-                                              onPressed: _secondsRemaining == 0
-                                                  ? () {
-                                                      _startResendTimer();
-                                                      controller.sendOtp();
-                                                    }
-                                                  : null,
-                                              style: TextButton.styleFrom(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 12,
-                                                  vertical: 6,
-                                                ),
-                                                backgroundColor:
-                                                    _secondsRemaining == 0
-                                                        ? const Color(0xFFF5B800)
-                                                        : AppColors.border
-                                                            .withValues(
-                                                              alpha: 0.5,
-                                                            ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                              ),
-                                              child: Text(
-                                                "Resend",
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: _secondsRemaining == 0
-                                                      ? Colors.black
-                                                      : AppColors.textMuted,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                    /// Resend Countdown Box — Navy styled
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _kNavy.withValues(alpha: 0.04),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: _kNavy.withValues(alpha: 0.10),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            height: 32,
+                                            width: 32,
+                                            decoration: BoxDecoration(
+                                              color: _kNavy
+                                                  .withValues(alpha: 0.08),
+                                              borderRadius: BorderRadius.circular(
+                                                10,
+                                              ),
+                                            ),
+                                            child: const Icon(
+                                              Icons.timer_outlined,
+                                              color: _kNavy,
+                                              size: 17,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                const Text(
+                                                  "Didn't receive code?",
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: _kNavy,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 1),
+                                                Text(
+                                                  _secondsRemaining > 0
+                                                      ? "Resend available in 00:${_secondsRemaining.toString().padLeft(2, '0')}"
+                                                      : "You can resend a new OTP now",
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: _secondsRemaining > 0
+                                                        ? const Color(0xFFB0B3C1)
+                                                        : _kGreen,
+                                                    fontWeight:
+                                                        _secondsRemaining > 0
+                                                            ? FontWeight.w400
+                                                            : FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: _secondsRemaining == 0
+                                                ? () {
+                                                    _startResendTimer();
+                                                    controller.sendOtp();
+                                                  }
+                                                : null,
+                                            style: TextButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 6,
+                                              ),
+                                              backgroundColor:
+                                                  _secondsRemaining == 0
+                                                      ? _kNavy
+                                                      : const Color(0xFFEEEFF3),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              "Resend",
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w800,
+                                                color: _secondsRemaining == 0
+                                                    ? Colors.white
+                                                    : const Color(0xFFB0B3C1),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -499,8 +462,7 @@ class _OtpDigitField extends StatelessWidget {
       style: const TextStyle(
         fontSize: 22,
         fontWeight: FontWeight.w800,
-        color: AppColors.textPrimary,
-        fontFamily: 'SF Pro Display',
+        color: _kNavy,
       ),
       maxLength: 1,
       inputFormatters: [
@@ -511,86 +473,21 @@ class _OtpDigitField extends StatelessWidget {
       decoration: InputDecoration(
         counterText: "",
         filled: true,
-        fillColor: AppColors.inputFill,
+        fillColor: const Color(0xFFF5F6FA),
         contentPadding: const EdgeInsets.symmetric(vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.border, width: 1),
+          borderSide: const BorderSide(color: Color(0xFFEEEFF3), width: 1),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.border, width: 1),
+          borderSide: const BorderSide(color: Color(0xFFEEEFF3), width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.8),
+          borderSide: const BorderSide(color: _kNavy, width: 1.8),
         ),
       ),
     );
   }
-}
-
-class _TraditionalArchPainter extends CustomPainter {
-  final Color color;
-
-  const _TraditionalArchPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Navy paint for outer curves
-    final navyPaint = Paint()
-      ..color = const Color(0xFF1A1A2E).withValues(alpha: 0.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    // Gold/Amber paint for inner curves and details
-    final goldPaint = Paint()
-      ..color = const Color(0xFFF5B800).withValues(alpha: 0.9)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-
-    final fillGold = Paint()
-      ..color = const Color(0xFFF5B800)
-      ..style = PaintingStyle.fill;
-
-    // --- Top-Right Corner Motif ---
-    final trPath = Path();
-    trPath.moveTo(size.width - 45, 0);
-    trPath.quadraticBezierTo(size.width - 25, 0, size.width - 25, 20);
-    trPath.quadraticBezierTo(size.width - 25, 40, size.width, 40);
-    canvas.drawPath(trPath, navyPaint);
-
-    final trPathInner = Path();
-    trPathInner.moveTo(size.width - 30, 0);
-    trPathInner.quadraticBezierTo(size.width - 15, 0, size.width - 15, 15);
-    trPathInner.quadraticBezierTo(size.width - 15, 28, size.width, 28);
-    canvas.drawPath(trPathInner, goldPaint);
-
-    // Decorative Lotus/Accent Petals in Top-Right
-    canvas.drawCircle(Offset(size.width - 15, 15), 3.0, fillGold);
-    canvas.drawCircle(Offset(size.width - 25, 6), 2.0, fillGold);
-    canvas.drawCircle(Offset(size.width - 6, 25), 2.0, fillGold);
-
-    // --- Bottom-Left Corner Motif ---
-    final blPath = Path();
-    blPath.moveTo(0, size.height - 40);
-    blPath.quadraticBezierTo(25, size.height - 40, 25, size.height - 20);
-    blPath.quadraticBezierTo(25, size.height, 45, size.height);
-    canvas.drawPath(blPath, navyPaint);
-
-    final blPathInner = Path();
-    blPathInner.moveTo(0, size.height - 28);
-    blPathInner.quadraticBezierTo(15, size.height - 28, 15, size.height - 15);
-    blPathInner.quadraticBezierTo(15, size.height, 30, size.height);
-    canvas.drawPath(blPathInner, goldPaint);
-
-    // Decorative Accent Dots in Bottom-Left
-    canvas.drawCircle(Offset(15, size.height - 15), 3.0, fillGold);
-    canvas.drawCircle(Offset(6, size.height - 25), 2.0, fillGold);
-    canvas.drawCircle(Offset(25, size.height - 6), 2.0, fillGold);
-  }
-
-  @override
-  bool shouldRepaint(covariant _TraditionalArchPainter oldDelegate) =>
-      oldDelegate.color != color;
 }

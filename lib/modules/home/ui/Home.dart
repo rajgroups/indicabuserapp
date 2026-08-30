@@ -266,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   _EssentialGridItem(
                                     icon: Icons.local_offer_rounded,
                                     label: 'Offers',
-                                    color: const Color(0xFFFF6B35),
+                                    color: const Color(0xFF00C853),
                                     onTap: () => Helpers.showComingSoon('Offers'),
                                   ),
                                   _EssentialGridItem(
@@ -284,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   _EssentialGridItem(
                                     icon: Icons.card_giftcard_rounded,
                                     label: 'Rewards',
-                                    color: const Color(0xFFFFCC00),
+                                    color: const Color(0xFF1A1A2E),
                                     onTap: () => Helpers.showComingSoon('Rewards & Loyalty'),
                                   ),
                                   _EssentialGridItem(
@@ -377,14 +377,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                     child: Text(
                                       'Continue Booking',
                                       style: TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 15,
                                       ),
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: AppColors.textPrimary,
+                                    backgroundColor: const Color(0xFF1A1A2E),
+                                    foregroundColor: Colors.white,
                                     elevation: 0,
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 16,
@@ -575,11 +576,11 @@ class _ActiveRideFloatingCard extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.2),
+                    color: const Color(0xFF00C853).withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: Icon(_icon, color: AppColors.primary, size: 24),
+                    child: Icon(_icon, color: const Color(0xFF00C853), size: 24),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -617,7 +618,7 @@ class _ActiveRideFloatingCard extends StatelessWidget {
                     vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: const Color(0xFF00C853),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -627,7 +628,7 @@ class _ActiveRideFloatingCard extends StatelessWidget {
                         'Track',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textPrimary,
+                          color: Colors.white,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -635,7 +636,7 @@ class _ActiveRideFloatingCard extends StatelessWidget {
                       Icon(
                         Icons.chevron_right_rounded,
                         size: 16,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                       ),
                     ],
                   ),

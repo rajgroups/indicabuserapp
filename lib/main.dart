@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'layout/app.dart';
 import 'core/config/Config.dart';
+import 'core/services/NotificationService.dart';
 import 'core/services/SocketService.dart';
 
 void main() async {
@@ -17,5 +18,6 @@ void main() async {
     'placesKeyLooksReal=${AppEnv.hasGooglePlacesApiKey}',
   );
   Get.put(SocketService(), permanent: true);
+  await Get.putAsync(() => NotificationService().init(), permanent: true);
   runApp(const IndicabApp());
 }

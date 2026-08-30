@@ -42,6 +42,7 @@ class ApiVehicleType {
   final String? description;
   final String? iconUrl;
   final String? imageUrl;
+  final bool dropLocationRequired;
   final List<ApiSubCategory> subCategories;
 
   ApiVehicleType({
@@ -57,6 +58,7 @@ class ApiVehicleType {
     this.description,
     this.iconUrl,
     this.imageUrl,
+    this.dropLocationRequired = true,
     required this.subCategories,
   });
 
@@ -75,6 +77,7 @@ class ApiVehicleType {
       description: json['description'],
       iconUrl: json['icon_url']?.toString(),
       imageUrl: json['image_url']?.toString(),
+      dropLocationRequired: json['drop_location_required'] ?? true,
       subCategories: (json['sub_categories'] as List<dynamic>?)
               ?.map((e) => ApiSubCategory.fromJson(e))
               .toList() ??

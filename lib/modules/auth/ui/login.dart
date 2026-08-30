@@ -9,6 +9,11 @@ import 'package:indicab/modules/auth/widgets/login_illustration.dart';
 import '../../../shared/widgets/social_button.dart';
 import '../AuthController.dart';
 
+// ─── Rapido Driver Palette & Fonts ───────────────────────────────────────────
+const _kNavy  = Color(0xFF1A1A2E);
+const _kGreen = Color(0xFF00C853);
+const _kBg    = Color(0xFFF5F6FA);
+
 class LoginScreen extends GetView<AuthController> {
   const LoginScreen({super.key});
 
@@ -22,7 +27,7 @@ class LoginScreen extends GetView<AuthController> {
   @override
   Widget build(BuildContext context) {
     return AppScreen(
-      backgroundColor: AppColors.authBackground,
+      backgroundColor: _kBg,
       resizeToAvoidBottomInset: true,
       child: SafeArea(
         child: LayoutBuilder(
@@ -44,27 +49,23 @@ class LoginScreen extends GetView<AuthController> {
 
                         const SizedBox(height: 16),
 
-                        /// Main Form Card (Stretches to fill full available vertical height)
+                        /// Main Form Card (Matching Driver App LoginView)
                         Expanded(
-                          child: CustomPaint(
-                            foregroundPainter: const _TraditionalArchPainter(
-                              color: Color(0xFF1A1A2E),
-                            ),
-                            child: Container(
-                              width: double.infinity,
+                          child: Container(
+                            width: double.infinity,
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: AppColors.surface,
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(24),
                               border: Border.all(
-                                color: AppColors.borderSoft,
+                                color: const Color(0xFFEEEFF3),
                                 width: 1.2,
                               ),
-                              boxShadow: const [
+                              boxShadow: [
                                 BoxShadow(
-                                  color: Color(0x0C000000),
+                                  color: _kNavy.withValues(alpha: 0.06),
                                   blurRadius: 20,
-                                  offset: Offset(0, 8),
+                                  offset: const Offset(0, 8),
                                 ),
                               ],
                             ),
@@ -84,7 +85,7 @@ class LoginScreen extends GetView<AuthController> {
                                           style: TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w700,
-                                            color: AppColors.textPrimary,
+                                            color: _kNavy,
                                             fontFamily: 'SF Pro Text',
                                           ),
                                         ),
@@ -104,7 +105,7 @@ class LoginScreen extends GetView<AuthController> {
                                                         .only(right: 4),
                                                     child: const Icon(
                                                       Icons.check_circle_rounded,
-                                                      color: Color(0xFF00C853),
+                                                      color: _kGreen,
                                                       size: 14,
                                                     ),
                                                   ),
@@ -114,7 +115,7 @@ class LoginScreen extends GetView<AuthController> {
                                                     fontSize: 11,
                                                     fontWeight: FontWeight.w600,
                                                     color: isValid
-                                                        ? const Color(0xFF00C853)
+                                                        ? _kGreen
                                                         : AppColors.textMuted,
                                                   ),
                                                 ),
@@ -129,10 +130,10 @@ class LoginScreen extends GetView<AuthController> {
                                     /// Phone Input Container
                                     Container(
                                       decoration: BoxDecoration(
-                                        color: AppColors.inputFill,
+                                        color: const Color(0xFFF5F6FA),
                                         borderRadius: BorderRadius.circular(16),
                                         border: Border.all(
-                                          color: AppColors.border,
+                                          color: const Color(0xFFEEEFF3),
                                           width: 1,
                                         ),
                                       ),
@@ -151,11 +152,11 @@ class LoginScreen extends GetView<AuthController> {
                                                 vertical: 6,
                                               ),
                                               decoration: BoxDecoration(
-                                                color: AppColors.white,
+                                                color: Colors.white,
                                                 borderRadius:
                                                     BorderRadius.circular(12),
                                                 border: Border.all(
-                                                  color: AppColors.borderSoft,
+                                                  color: const Color(0xFFEEEFF3),
                                                   width: 1,
                                                 ),
                                               ),
@@ -196,8 +197,7 @@ class LoginScreen extends GetView<AuthController> {
                                                               fontSize: 14,
                                                               fontWeight:
                                                                   FontWeight.w700,
-                                                              color: AppColors
-                                                                  .textPrimary,
+                                                              color: _kNavy,
                                                             ),
                                                           ),
                                                         ],
@@ -226,7 +226,7 @@ class LoginScreen extends GetView<AuthController> {
                                               keyboardType: TextInputType.phone,
                                               style: const TextStyle(
                                                 fontSize: 16,
-                                                color: Colors.black,
+                                                color: _kNavy,
                                                 fontWeight: FontWeight.w700,
                                                 letterSpacing: 1.0,
                                               ),
@@ -283,7 +283,7 @@ class LoginScreen extends GetView<AuthController> {
 
                                     const SizedBox(height: 18),
 
-                                    /// Gradient Action Button
+                                    /// Gradient Action Button (Matching Driver App LoginView)
                                     Obx(
                                       () => SizedBox(
                                         width: double.infinity,
@@ -307,15 +307,14 @@ class LoginScreen extends GetView<AuthController> {
                                                   ? null
                                                   : const LinearGradient(
                                                       colors: [
-                                                        Color(0xFFF5B800),
-                                                        Color(0xFFE6A700),
+                                                        _kNavy,
+                                                        Color(0xFF2D2D4E),
                                                       ],
                                                       begin: Alignment.centerLeft,
-                                                      end:
-                                                          Alignment.centerRight,
+                                                      end: Alignment.centerRight,
                                                     ),
                                               color: controller.isLoading.value
-                                                  ? AppColors.border
+                                                  ? const Color(0xFFEEEFF3)
                                                   : null,
                                               borderRadius: BorderRadius.circular(
                                                 24,
@@ -325,9 +324,8 @@ class LoginScreen extends GetView<AuthController> {
                                                   ? null
                                                   : [
                                                       BoxShadow(
-                                                        color: const Color(
-                                                          0xFFF5B800,
-                                                        ).withValues(alpha: 0.35),
+                                                        color: _kNavy
+                                                            .withValues(alpha: 0.30),
                                                         blurRadius: 12,
                                                         offset: const Offset(
                                                           0,
@@ -345,8 +343,7 @@ class LoginScreen extends GetView<AuthController> {
                                                       child:
                                                           CircularProgressIndicator(
                                                             strokeWidth: 2.2,
-                                                            color:
-                                                                AppColors.black,
+                                                            color: _kNavy,
                                                           ),
                                                     )
                                                   : const Row(
@@ -360,7 +357,7 @@ class LoginScreen extends GetView<AuthController> {
                                                             fontSize: 16,
                                                             fontWeight:
                                                                 FontWeight.w800,
-                                                            color: Colors.black,
+                                                            color: Colors.white,
                                                             letterSpacing: 0.3,
                                                           ),
                                                         ),
@@ -368,7 +365,7 @@ class LoginScreen extends GetView<AuthController> {
                                                         Icon(
                                                           Icons
                                                               .arrow_forward_rounded,
-                                                          color: Colors.black,
+                                                          color: _kGreen,
                                                           size: 18,
                                                         ),
                                                       ],
@@ -388,9 +385,9 @@ class LoginScreen extends GetView<AuthController> {
                                     /// OR Divider
                                     Row(
                                       children: [
-                                        Expanded(
+                                        const Expanded(
                                           child: Divider(
-                                            color: AppColors.border,
+                                            color: Color(0xFFEEEFF3),
                                             thickness: 1,
                                           ),
                                         ),
@@ -400,16 +397,16 @@ class LoginScreen extends GetView<AuthController> {
                                           ),
                                           child: Text(
                                             AppStrings.or,
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               color: AppColors.textMuted,
                                               fontWeight: FontWeight.w700,
                                               fontSize: 12,
                                             ),
                                           ),
                                         ),
-                                        Expanded(
+                                        const Expanded(
                                           child: Divider(
-                                            color: AppColors.border,
+                                            color: Color(0xFFEEEFF3),
                                             thickness: 1,
                                           ),
                                         ),
@@ -440,7 +437,6 @@ class LoginScreen extends GetView<AuthController> {
                             ),
                           ),
                         ),
-                      ),
 
                         const SizedBox(height: 16),
 
@@ -456,23 +452,23 @@ class LoginScreen extends GetView<AuthController> {
                                   color: AppColors.textMuted,
                                   height: 1.35,
                                 ),
-                                children: [
+                                children: const [
                                   TextSpan(
                                     text: AppStrings.terms,
                                     style: TextStyle(
-                                      color: AppColors.primaryDark,
+                                      color: _kNavy,
                                       fontWeight: FontWeight.w700,
                                       decoration: TextDecoration.underline,
                                     ),
                                   ),
-                                  const TextSpan(
+                                  TextSpan(
                                     text: " ${AppStrings.and_sign} ",
                                     style: TextStyle(color: AppColors.textMuted),
                                   ),
                                   TextSpan(
                                     text: AppStrings.privacy,
                                     style: TextStyle(
-                                      color: AppColors.primaryDark,
+                                      color: _kNavy,
                                       fontWeight: FontWeight.w700,
                                       decoration: TextDecoration.underline,
                                     ),
@@ -494,69 +490,4 @@ class LoginScreen extends GetView<AuthController> {
       ),
     );
   }
-}
-
-class _TraditionalArchPainter extends CustomPainter {
-  final Color color;
-
-  const _TraditionalArchPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Navy paint for outer curves
-    final navyPaint = Paint()
-      ..color = const Color(0xFF1A1A2E).withValues(alpha: 0.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    // Gold/Amber paint for inner curves and details
-    final goldPaint = Paint()
-      ..color = const Color(0xFFF5B800).withValues(alpha: 0.9)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-
-    final fillGold = Paint()
-      ..color = const Color(0xFFF5B800)
-      ..style = PaintingStyle.fill;
-
-    // --- Top-Right Corner Motif ---
-    final trPath = Path();
-    trPath.moveTo(size.width - 45, 0);
-    trPath.quadraticBezierTo(size.width - 25, 0, size.width - 25, 20);
-    trPath.quadraticBezierTo(size.width - 25, 40, size.width, 40);
-    canvas.drawPath(trPath, navyPaint);
-
-    final trPathInner = Path();
-    trPathInner.moveTo(size.width - 30, 0);
-    trPathInner.quadraticBezierTo(size.width - 15, 0, size.width - 15, 15);
-    trPathInner.quadraticBezierTo(size.width - 15, 28, size.width, 28);
-    canvas.drawPath(trPathInner, goldPaint);
-
-    // Decorative Lotus/Accent Petals in Top-Right
-    canvas.drawCircle(Offset(size.width - 15, 15), 3.0, fillGold);
-    canvas.drawCircle(Offset(size.width - 25, 6), 2.0, fillGold);
-    canvas.drawCircle(Offset(size.width - 6, 25), 2.0, fillGold);
-
-    // --- Bottom-Left Corner Motif ---
-    final blPath = Path();
-    blPath.moveTo(0, size.height - 40);
-    blPath.quadraticBezierTo(25, size.height - 40, 25, size.height - 20);
-    blPath.quadraticBezierTo(25, size.height, 45, size.height);
-    canvas.drawPath(blPath, navyPaint);
-
-    final blPathInner = Path();
-    blPathInner.moveTo(0, size.height - 28);
-    blPathInner.quadraticBezierTo(15, size.height - 28, 15, size.height - 15);
-    blPathInner.quadraticBezierTo(15, size.height, 30, size.height);
-    canvas.drawPath(blPathInner, goldPaint);
-
-    // Decorative Accent Dots in Bottom-Left
-    canvas.drawCircle(Offset(15, size.height - 15), 3.0, fillGold);
-    canvas.drawCircle(Offset(6, size.height - 25), 2.0, fillGold);
-    canvas.drawCircle(Offset(25, size.height - 6), 2.0, fillGold);
-  }
-
-  @override
-  bool shouldRepaint(covariant _TraditionalArchPainter oldDelegate) =>
-      oldDelegate.color != color;
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:indicab/core/config/Config.dart';
 import 'package:indicab/core/models/booking_response.dart';
 import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/modules/home/HomeController.dart';
@@ -18,7 +19,7 @@ class SocketService extends GetxService with WidgetsBindingObserver {
   bool _shouldReconnect = true;
 
   /// Base URL for the WebSocket connection.
-  final String _baseUrl = 'ws://10.82.106.83:9502';
+  String get _baseUrl => AppEnv.socketUrl;
 
   /// Reactive flag to observe connection status across the app.
   final RxBool isConnected = false.obs;

@@ -13,6 +13,9 @@ import '../core/repository/AppUpdateRepository.dart';
 import '../shared/widgets/app_update_dialog.dart';
 import '../core/theme/theme.dart';
 
+import '../modules/splash/SplashScreen.dart';
+import '../shared/widgets/loader.dart';
+
 class IndicabApp extends StatelessWidget {
   const IndicabApp({super.key});
 
@@ -22,7 +25,7 @@ class IndicabApp extends StatelessWidget {
       title: 'Indicab',
       debugShowCheckedModeBanner: false,
       initialBinding: AuthBinding(),
-      home: const AuthGate(),
+      home: const SplashScreen(),
       getPages: AppRoutes.pages,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
@@ -30,6 +33,7 @@ class IndicabApp extends StatelessWidget {
     );
   }
 }
+
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -113,20 +117,18 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const Scaffold(
       backgroundColor: AppColors.authBackground,
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading Indicab...'),
-          ],
+        child: AppPulsingLogoLoader(
+          size: 72,
+          message: 'Loading Indicab...',
+          primaryColor: AppColors.primary,
         ),
       ),
     );
   }
+
 }
 
 class AppScreen extends StatelessWidget {
