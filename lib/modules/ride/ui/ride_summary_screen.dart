@@ -169,6 +169,7 @@ class _RideSummaryScreenState extends State<RideSummaryScreen>
         children: [
           // ── Dark navy success header ───────────────────────────────
           Container(
+            width: double.infinity,
             color: _kNavy,
             padding: EdgeInsets.fromLTRB(
               20,

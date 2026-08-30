@@ -5,7 +5,7 @@ import 'package:indicab/core/routes/names.dart';
 
 class Helpers {
 
-  static void success(String message,String? route,) {
+  static void success(String message, String? route, {dynamic arguments}) {
     QuickAlert.show(
       context: Get.context!,
       type: QuickAlertType.success,
@@ -22,7 +22,7 @@ class Helpers {
 
         /// NAVIGATE
         if (route != null) {
-          Get.offAllNamed(route);
+          Get.offAllNamed(route, arguments: arguments);
         }
       },
     );

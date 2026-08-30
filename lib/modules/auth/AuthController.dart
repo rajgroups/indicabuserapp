@@ -36,8 +36,7 @@ class AuthController extends GetxController {
       print('Send OTP API Response:$response');
 
       Helpers.close(); // Close the loading dialog
-      Helpers.success("OTP sent successfully", RouteNames.otp);
-      Get.toNamed(RouteNames.otp);
+      Helpers.success("OTP sent successfully", RouteNames.otp, arguments: mobile);
     } catch (e) {
       Helpers.close(); // Close the loading dialog
       print('Send OTP Error: $e'); // Print the error to the terminal
@@ -63,6 +62,7 @@ class AuthController extends GetxController {
 
       Helpers.loading();
 
+      print('Verifying OTP for mobile: "${mobileController.text.trim()}" with OTP: "$otp"');
       final response = await _service.verifyOtp(
         OtpRequest(mobile: mobileController.text.trim(), otp: otp),
       );
@@ -128,10 +128,4 @@ class AuthController extends GetxController {
     }
   }
 
-  @override
-  void onClose() {
-    mobileController.clear();
-    otpController.clear();
-    super.onClose();
-  }
 }

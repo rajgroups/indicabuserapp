@@ -31,6 +31,10 @@ class _OtpScreenState extends State<OtpScreen> {
   @override
   void initState() {
     super.initState();
+    print('OtpScreen initState: Get.arguments = ${Get.arguments}');
+    if (Get.arguments != null) {
+      controller.mobileController.text = Get.arguments.toString();
+    }
     _digitControllers = List.generate(4, (_) => TextEditingController());
     _focusNodes = List.generate(4, (_) => FocusNode());
     _startResendTimer();
@@ -268,19 +272,15 @@ class _OtpScreenState extends State<OtpScreen> {
                                             decoration: BoxDecoration(
                                               color: controller.isLoading.value
                                                   ? const Color(0xFFEEEFF3)
-                                                  : Colors.white,
+                                                  : _kNavy,
                                               borderRadius: BorderRadius.circular(
                                                 24,
-                                              ),
-                                              border: Border.all(
-                                                color: const Color(0xFFEEEFF3),
-                                                width: 1.2,
                                               ),
                                               boxShadow: controller.isLoading.value
                                                   ? null
                                                   : [
                                                       BoxShadow(
-                                                        color: _kNavy.withValues(alpha: 0.12),
+                                                        color: _kNavy.withValues(alpha: 0.30),
                                                         blurRadius: 12,
                                                         offset: const Offset(0, 4),
                                                       ),
@@ -301,12 +301,18 @@ class _OtpScreenState extends State<OtpScreen> {
                                                       mainAxisAlignment:
                                                           MainAxisAlignment.center,
                                                       children: [
+                                                        Icon(
+                                                          Icons.verified_user_rounded,
+                                                          color: Color(0xFFFFC107),
+                                                          size: 18,
+                                                        ),
+                                                        SizedBox(width: 6),
                                                         Text(
                                                           "Verify & Proceed",
                                                           style: TextStyle(
                                                             fontSize: 16,
                                                             fontWeight: FontWeight.w800,
-                                                            color: _kNavy,
+                                                            color: Colors.white,
                                                             letterSpacing: 0.3,
                                                           ),
                                                         ),

@@ -58,11 +58,7 @@ class OtpIllustration extends StatelessWidget {
                             height: 36,
                             width: 36,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [AppColors.primary, AppColors.primaryDark],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
+                              color: AppColors.primary,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
@@ -290,18 +286,9 @@ class _OtpTopHeroVectorPainter extends CustomPainter {
     final width = size.width;
     final height = size.height;
 
-    // Ambient radial glow - subtle navy tint
-    final bgGlowPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          _kNavy.withValues(alpha: 0.04),
-          const Color(0xFFFFFFFF),
-        ],
-        center: Alignment.topRight,
-        radius: 1.1,
-      ).createShader(Rect.fromLTWH(0, 0, width, height));
-
-    canvas.drawRect(Rect.fromLTWH(0, 0, width, height), bgGlowPaint);
+    // Ambient white background
+    final bgPaint = Paint()..color = const Color(0xFFFFFFFF);
+    canvas.drawRect(Rect.fromLTWH(0, 0, width, height), bgPaint);
 
     final shieldCenterX = width * 0.85;
     final shieldCenterY = height * 0.55;
@@ -348,15 +335,9 @@ class _OtpTopHeroVectorPainter extends CustomPainter {
     );
     shieldPath.close();
 
-    final shieldGradientPaint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF1A1A2E), Color(0xFF2D2D4E)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Rect.fromLTWH(
-          shieldCenterX - sWidth / 2, sTop, sWidth, sHeight));
+    final shieldPaint = Paint()..color = const Color(0xFF1A1A2E);
 
-    canvas.drawPath(shieldPath, shieldGradientPaint);
+    canvas.drawPath(shieldPath, shieldPaint);
 
     // Green check on shield
     final checkPaint = Paint()

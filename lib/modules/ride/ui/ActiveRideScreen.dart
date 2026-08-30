@@ -804,10 +804,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                         otpStr != null && otpStr.isNotEmpty
                             ? otpStr.split('').join('  ')
                             : 'Waiting for OTP...',
-                        style: const TextStyle(
-                          fontSize: 36,
+                        style: TextStyle(
+                          fontSize: (otpStr != null && otpStr.length > 4) ? 26 : 36,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 6,
+                          letterSpacing: (otpStr != null && otpStr.length > 4) ? 4 : 6,
                           color: Colors.white,
                         ),
                       ),
@@ -1714,6 +1714,11 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     final digits = rawOtp.isNotEmpty
         ? rawOtp.split('')
         : ['•', '•', '•', '•'];
+    final isLongOtp = digits.length > 4;
+    final boxWidth = isLongOtp ? 36.0 : 48.0;
+    final boxHeight = isLongOtp ? 46.0 : 56.0;
+    final boxMargin = isLongOtp ? 3.0 : 6.0;
+    final fontSize = isLongOtp ? 20.0 : 28.0;
 
     return CustomPaint(
       foregroundPainter: const _TraditionalArchPainter(
@@ -1748,15 +1753,17 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                   color: Color(0xFFFFC107),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  isStarted
-                      ? 'SHARE THIS OTP TO COMPLETE RIDE'
-                      : 'SHARE THIS PIN WITH YOUR DRIVER',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
-                    color: Color(0xFFFFC107),
+                Flexible(
+                  child: Text(
+                    isStarted
+                        ? 'SHARE THIS OTP TO COMPLETE RIDE'
+                        : 'SHARE THIS PIN WITH YOUR DRIVER',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.0,
+                      color: Color(0xFFFFC107),
+                    ),
                   ),
                 ),
               ],
@@ -1768,13 +1775,13 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: digits.map((digit) {
                 return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 6),
-                  width: 48,
-                  height: 56,
+                  margin: EdgeInsets.symmetric(horizontal: boxMargin),
+                  width: boxWidth,
+                  height: boxHeight,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(isLongOtp ? 10 : 14),
                     border: Border.all(
                       color: const Color(0xFFF5B800).withValues(alpha: 0.6),
                       width: 1.5,
@@ -1789,8 +1796,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                   ),
                   child: Text(
                     digit,
-                    style: const TextStyle(
-                      fontSize: 28,
+                    style: TextStyle(
+                      fontSize: fontSize,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
                       fontFamily: 'monospace',
@@ -1829,12 +1836,14 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                         color: Color(0xFF94A3B8),
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        'Tap to copy PIN $rawOtp',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF94A3B8),
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          'Tap to copy PIN $rawOtp',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
