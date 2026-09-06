@@ -7,6 +7,7 @@ import 'package:indicab/modules/settings/ui/settings.dart';
 import 'package:indicab/modules/profile/ProfileController.dart';
 import 'package:indicab/modules/profile/ui/EditProfileScreen.dart';
 import 'package:indicab/modules/auth/AuthController.dart';
+import 'package:indicab/core/routes/names.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kNavy   = Color(0xFF1A1A2E);
@@ -300,6 +301,30 @@ class ProfileScreen extends StatelessWidget {
                             title: 'Settings',
                             subtitle: 'Preferences & privacy',
                             onTap: () => Get.to(() => const SettingsScreen()),
+                          ),
+                          _Divider(),
+                          _MenuItem(
+                            icon: Icons.privacy_tip_outlined,
+                            iconBg: _kGreen.withValues(alpha: 0.10),
+                            iconColor: _kGreen,
+                            title: 'Privacy Policy',
+                            subtitle: 'Read our privacy policy',
+                            onTap: () => Get.toNamed(
+                              RouteNames.cmsPage,
+                              arguments: {'slug': 'privacy-policy', 'title': 'Privacy Policy'},
+                            ),
+                          ),
+                          _Divider(),
+                          _MenuItem(
+                            icon: Icons.description_outlined,
+                            iconBg: const Color(0xFF6C63FF).withValues(alpha: 0.10),
+                            iconColor: const Color(0xFF6C63FF),
+                            title: 'Terms & Conditions',
+                            subtitle: 'Read our terms of service',
+                            onTap: () => Get.toNamed(
+                              RouteNames.cmsPage,
+                              arguments: {'slug': 'terms-and-conditions', 'title': 'Terms & Conditions'},
+                            ),
                           ),
                         ],
                       ),

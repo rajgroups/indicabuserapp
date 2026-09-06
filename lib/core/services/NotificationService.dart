@@ -15,6 +15,7 @@ Future<void> userFirebaseMessagingBackgroundHandler(RemoteMessage message) async
 
 class NotificationService extends GetxService {
   final RxString fcmToken = ''.obs;
+  bool _isSendingToken = false;
 
   Future<NotificationService> init() async {
     try {
@@ -79,7 +80,7 @@ class NotificationService extends GetxService {
       if (token != null && token.isNotEmpty) {
         fcmToken.value = token;
         debugPrint("User FCM Token retrieved: $token");
-        await sendTokenToBackend(token);
+        await sendTokenIfAuthenticated();
       }
       return token;
     } catch (e) {
@@ -90,14 +91,31 @@ class NotificationService extends GetxService {
 
   Future<void> sendTokenToBackend(String token) async {
     if (token.isEmpty) return;
+    await sendTokenIfAuthenticated(token);
+  }
+
+  /// Sends the cached token after the user session has been installed.
+  Future<void> sendTokenIfAuthenticated([String? token]) async {
+    final tokenToSend = token ?? fcmToken.value;
+    if (tokenToSend.isEmpty || _isSendingToken) return;
+
+    final authorization = ApiClient().authorizationHeader;
+    if (authorization == null || authorization.isEmpty) {
+      debugPrint('Skipping FCM token sync until user authentication is ready.');
+      return;
+    }
+
+    _isSendingToken = true;
     try {
       final response = await ApiClient().post(
         ApiEndpoints.updateFcmToken,
-        data: {'fcm_token': token},
+        data: {'fcm_token': tokenToSend},
       );
       debugPrint("User FCM token updated on backend: ${response.data}");
     } catch (e) {
       debugPrint("Failed to send User FCM token to backend: $e");
+    } finally {
+      _isSendingToken = false;
     }
   }
 

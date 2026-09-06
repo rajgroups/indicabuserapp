@@ -88,6 +88,8 @@ class ApiClient {
     // _dio.options.headers['Refresh-Token'] = 'Bearer $refreshToken';
   }
 
+  String? get authorizationHeader => _dio.options.headers['Authorization']?.toString();
+
   // revoke Tokens
   void revokeTokens(){
     _dio.options.headers.remove('Authorization');

@@ -40,6 +40,7 @@ class BookingDataModel {
     this.startOtp,
     this.endOtp,
     this.estimatedAmount,
+    this.finalAmount,
     this.driverName,
     this.vehicleNumber,
     this.vehicleName,
@@ -68,6 +69,7 @@ class BookingDataModel {
   final String? startOtp;
   final String? endOtp;
   final double? estimatedAmount;
+  final double? finalAmount;
   final String? driverName;
   final String? vehicleNumber;
   final String? vehicleName;
@@ -145,6 +147,9 @@ class BookingDataModel {
       endOtp: json['end_otp']?.toString(),
       estimatedAmount: json['estimated_amount'] != null
           ? double.tryParse(json['estimated_amount'].toString())
+          : null,
+      finalAmount: json['final_amount'] != null
+          ? double.tryParse(json['final_amount'].toString())
           : null,
       driverName: json['driver'] is Map<String, dynamic>
           ? (json['driver']['name']?.toString())

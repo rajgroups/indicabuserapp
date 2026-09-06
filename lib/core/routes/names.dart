@@ -11,4 +11,5 @@ class RouteNames {
   static const rideHistory = '/ride-history';
   static const rideDetails = '/ride-details';
   static const menu = '/menu';
+  static const cmsPage = '/cms-page';
 }

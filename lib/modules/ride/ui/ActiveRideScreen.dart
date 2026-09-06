@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/config/Config.dart';
 import 'package:indicab/core/services/SocketService.dart';
+import 'package:indicab/core/services/AppConfigService.dart';
 import 'package:indicab/core/services/DriverMarkerAnimator.dart';
 import 'package:indicab/core/services/PolylineService.dart';
 import 'package:indicab/core/constants/Colors.dart';
@@ -48,6 +49,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   LatLng? _driverPosition;
   bool _userMovedMap = false;
   bool _arrivedSheetShown = false;
+  bool _isFetchingBooking = false;
+  String? _lastBookingSnapshot;
 
   String? _lastPolylineStatus;
 
@@ -150,6 +153,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         (Get.arguments is Map && Get.arguments['booking_data'] is BookingDataModel
             ? Get.arguments['booking_data'] as BookingDataModel
             : null);
+    _lastBookingSnapshot = _bookingData == null ? null : _bookingSnapshot(_bookingData!);
+
+    _driverAnimator = DriverMarkerAnimator(vsync: this);
+    _driverAnimator.onUpdate = _onDriverAnimationTick;
 
     _loadCategoryMarkerIconIfNeeded(_bookingData?.effectiveCategoryIconUrl);
 
@@ -177,9 +184,6 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       return;
     }
 
-    _driverAnimator = DriverMarkerAnimator(vsync: this);
-    _driverAnimator.onUpdate = _onDriverAnimationTick;
-
     // Seed the initial driver position from the booking data or pickup location
     _seedDriverPosition();
 
@@ -189,7 +193,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     });
 
     // Single initial API fetch
-    _fetchBookingDetails();
+    _fetchBookingDetails(silent: _bookingData != null);
 
 
 
@@ -197,24 +201,38 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     final socketService = Get.find<SocketService>();
     socketService.on('driver_location_update', _onDriverLocationUpdate);
     socketService.on('booking_status', _onBookingStatusUpdate);
+
+    _startEconomyPollingIfNeeded();
+  }
+
+  Timer? _economyPollingTimer;
+
+  void _startEconomyPollingIfNeeded() {
+    if (Get.isRegistered<AppConfigService>() && Get.find<AppConfigService>().isEconomyMode) {
+      _economyPollingTimer?.cancel();
+      _economyPollingTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+        _fetchBookingDetails(silent: true);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _economyPollingTimer?.cancel();
+    final socketService = Get.find<SocketService>();
+    socketService.off('driver_location_update', _onDriverLocationUpdate);
+    socketService.off('booking_status', _onBookingStatusUpdate);
+    _driverAnimator.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      _fetchBookingDetails();
+      _fetchBookingDetails(silent: _bookingData != null);
     }
-  }
-
-  @override
-  void dispose() {
-    _driverAnimator.dispose();
-    WidgetsBinding.instance.removeObserver(this);
-    final socketService = Get.find<SocketService>();
-    socketService.off('driver_location_update', _onDriverLocationUpdate);
-    socketService.off('booking_status', _onBookingStatusUpdate);
-    super.dispose();
   }
 
   // ---------------------------------------------------------------------------
@@ -223,7 +241,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
   Future<void> _fetchBookingDetails({bool silent = false}) async {
     final bookingNo = _effectiveBookingNo;
-    if (bookingNo == null || bookingNo.isEmpty) return;
+    if (bookingNo == null || bookingNo.isEmpty || _isFetchingBooking) return;
+
+    _isFetchingBooking = true;
 
     if (!silent && mounted) {
       setState(() => _isLoading = true);
@@ -287,6 +307,11 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
           return;
         }
 
+        final snapshot = _bookingSnapshot(bookingData);
+        final bookingChanged = snapshot != _lastBookingSnapshot;
+        if (!bookingChanged) return;
+
+        _lastBookingSnapshot = snapshot;
         setState(() => _bookingData = bookingData);
         _loadCategoryMarkerIconIfNeeded(bookingData.effectiveCategoryIconUrl);
         _seedDriverPosition();
@@ -305,7 +330,39 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       if (!silent && mounted) {
         setState(() => _isLoading = false);
       }
+      _isFetchingBooking = false;
     }
+  }
+
+  String _bookingSnapshot(BookingDataModel booking) {
+    return <Object?>[
+      booking.id,
+      booking.bookingNo,
+      booking.status?.trim().toLowerCase(),
+      booking.bookingMode,
+      booking.driverId,
+      booking.vehicleId,
+      booking.vehicleCategoryId,
+      booking.scheduledAt,
+      booking.pickupAddress,
+      booking.dropAddress,
+      booking.startOtp,
+      booking.endOtp,
+      booking.estimatedAmount,
+      booking.driverName,
+      booking.vehicleNumber,
+      booking.vehicleName,
+      booking.pickupLatitude,
+      booking.pickupLongitude,
+      booking.dropLatitude,
+      booking.dropLongitude,
+      booking.categoryName,
+      booking.categoryIcon,
+      booking.categoryImage,
+      booking.driverLatitude,
+      booking.driverLongitude,
+      booking.requiresDropLocation,
+    ].join('|');
   }
 
   // ---------------------------------------------------------------------------
@@ -480,6 +537,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     }
 
 
+    final snapshot = _bookingSnapshot(newBooking);
+    if (snapshot == _lastBookingSnapshot) return;
+
+    _lastBookingSnapshot = snapshot;
     setState(() => _bookingData = newBooking);
     _loadCategoryMarkerIconIfNeeded(newBooking.effectiveCategoryIconUrl);
 
@@ -1051,7 +1112,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     final isAccepted = status == 'accepted';
     final isArrived = status == 'arrived';
     final otp = _bookingData?.startOtp;
-    final fare = _bookingData?.estimatedAmount;
+    final fare = (_bookingData?.finalAmount != null && _bookingData!.finalAmount! > 0)
+        ? _bookingData!.finalAmount
+        : _bookingData?.estimatedAmount;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
@@ -2026,7 +2089,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
               ),
               const SizedBox(height: 2),
               Text(
-                '₹${fare.toStringAsFixed(2)}',
+                '₹${fare.toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
@@ -2171,5 +2234,3 @@ class _TraditionalArchPainter extends CustomPainter {
   bool shouldRepaint(covariant _TraditionalArchPainter oldDelegate) =>
       oldDelegate.color != color;
 }
-
-

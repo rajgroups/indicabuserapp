@@ -15,6 +15,8 @@ import 'package:indicab/modules/home/ui/PickLocationMapScreen.dart';
 import 'package:indicab/modules/ride/ui/ActiveRideScreen.dart';
 import 'package:indicab/modules/ride/ui/FindingDriverScreen.dart';
 import 'package:indicab/modules/ride/ui/ride_summary_screen.dart';
+import 'package:indicab/modules/cms/views/cms_view.dart' as indicab_cms;
+import 'package:indicab/modules/cms/bindings/cms_binding.dart' as indicab_cms_binding;
 import 'names.dart';
 
 class AppRoutes {
@@ -95,6 +97,14 @@ class AppRoutes {
       name: RouteNames.rideDetails,
       page: () => const RideDetailsScreen(),
     ),
-    GetPage(name: RouteNames.menu, page: () => const ProfileScreen()),
+    GetPage(
+      name: RouteNames.menu,
+      page: () => const ProfileScreen(),
+    ),
+    GetPage(
+      name: RouteNames.cmsPage,
+      page: () => const indicab_cms.CmsView(),
+      binding: indicab_cms_binding.CmsBinding(),
+    ),
   ];
 }

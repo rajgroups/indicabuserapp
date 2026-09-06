@@ -104,9 +104,12 @@ class _RideSummaryScreenState extends State<RideSummaryScreen>
       _effectiveBookingData?.pickupAddress ?? 'Pickup Location';
 
   String get _fareLabel {
-    final amount = _effectiveBookingData?.estimatedAmount;
-    if (amount == null) return '₹245.00';
-    return '₹${amount.toStringAsFixed(2)}';
+    final booking = _effectiveBookingData;
+    if (booking == null) return '₹245.00';
+    final amount = (booking.finalAmount != null && booking.finalAmount! > 0)
+        ? booking.finalAmount!
+        : (booking.estimatedAmount ?? 0.0);
+    return '₹${amount.toStringAsFixed(0)}';
   }
 
   String get _driverLabel =>

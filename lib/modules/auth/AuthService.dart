@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:indicab/core/constants/Keys.dart';
 import 'package:indicab/core/network/client.dart';
 import 'package:indicab/core/services/SecureStorageService.dart';
+import 'package:indicab/core/services/NotificationService.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:indicab/core/services/SocketService.dart';
 
@@ -33,6 +34,9 @@ class AuthService {
 
     // Keep the token ready for active-ride or booking-driven socket connection.
     Get.find<SocketService>().setToken(authToken);
+    if (Get.isRegistered<NotificationService>()) {
+      await Get.find<NotificationService>().sendTokenIfAuthenticated();
+    }
 
     return response;
   }
@@ -47,6 +51,9 @@ class AuthService {
       await GetStorage().write(StorageKeys.token, authToken);
       _client.setTokens(authToken);
       Get.find<SocketService>().setToken(authToken);
+      if (Get.isRegistered<NotificationService>()) {
+        await Get.find<NotificationService>().sendTokenIfAuthenticated();
+      }
     }
 
     return response;

@@ -833,9 +833,11 @@ class _RideBookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final category = booking.categoryName ?? 'Ride';
-    final amount = booking.estimatedAmount != null
-        ? '₹${booking.estimatedAmount!.toStringAsFixed(0)}'
-        : '₹0';
+    final amount = (booking.finalAmount != null && booking.finalAmount! > 0)
+        ? '₹${booking.finalAmount!.toStringAsFixed(0)}'
+        : (booking.estimatedAmount != null
+            ? '₹${booking.estimatedAmount!.toStringAsFixed(0)}'
+            : '₹0');
     final pickup = booking.pickupAddress ?? 'Pickup Location';
     final drop = booking.dropAddress ?? 'Drop Location';
     final bookingNo = booking.bookingNo ?? '';

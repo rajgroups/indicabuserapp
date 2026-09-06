@@ -11,6 +11,7 @@ import 'package:indicab/core/repository/AppUpdateRepository.dart';
 import 'package:indicab/core/routes/names.dart';
 import 'package:indicab/core/services/SecureStorageService.dart';
 import 'package:indicab/core/services/StorageService.dart';
+import 'package:indicab/core/services/NotificationService.dart';
 import 'package:indicab/shared/widgets/app_update_dialog.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -101,6 +102,9 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (isAuthorized) {
         _client.setTokens(token);
+        if (Get.isRegistered<NotificationService>()) {
+          await Get.find<NotificationService>().sendTokenIfAuthenticated();
+        }
       }
     } catch (e) {
       debugPrint('[Splash] Auth check error: $e');

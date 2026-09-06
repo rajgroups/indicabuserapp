@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
@@ -6,6 +8,7 @@ import 'layout/app.dart';
 import 'core/config/Config.dart';
 import 'core/services/NotificationService.dart';
 import 'core/services/SocketService.dart';
+import 'core/services/AppConfigService.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +20,9 @@ void main() async {
     'mapsKeyLooksReal=${AppEnv.hasGoogleMapsApiKey}, '
     'placesKeyLooksReal=${AppEnv.hasGooglePlacesApiKey}',
   );
+  await Get.putAsync(() => AppConfigService().init(), permanent: true);
   Get.put(SocketService(), permanent: true);
-  await Get.putAsync(() => NotificationService().init(), permanent: true);
+  Get.put(NotificationService(), permanent: true);
   runApp(const IndicabApp());
+  unawaited(Get.find<NotificationService>().init());
 }
