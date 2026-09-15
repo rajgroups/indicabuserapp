@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:indicab/core/config/Config.dart';
 import 'package:indicab/core/constants/Colors.dart';
+import 'package:uuid/uuid.dart';
 
 class GooglePlacesInput extends StatefulWidget {
   final String hintText;
@@ -33,10 +35,26 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
   final Dio _dio = Dio();
   final FocusNode _focusNode = FocusNode();
   final List<_PlaceSuggestion> _suggestions = <_PlaceSuggestion>[];
+  static const Uuid _uuid = Uuid();
 
   Timer? _debounce;
   bool _isLoading = false;
   String? _errorText;
+
+  /// Session token for grouping autocomplete + place details into one billing session.
+  String? _sessionToken;
+
+  /// The query string that was last successfully fetched (prevents duplicate requests).
+  String? _lastFetchedQuery;
+
+  /// Monotonically increasing generation counter to discard stale responses.
+  int _fetchGeneration = 0;
+
+  /// Active CancelToken — cancelled when a new request supersedes the previous one.
+  CancelToken? _activeCancelToken;
+
+  /// Minimum number of characters required before sending an autocomplete request.
+  static const int _minQueryLength = 3;
 
   bool get _hasValidPlacesKey => AppEnv.hasGooglePlacesApiKey;
 
@@ -50,6 +68,7 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _activeCancelToken?.cancel('Widget disposed');
     _focusNode
       ..removeListener(_handleFocusChange)
       ..dispose();
@@ -66,12 +85,26 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
   void _clearInput() {
     widget.controller.clear();
     _debounce?.cancel();
+    _activeCancelToken?.cancel('Input cleared');
+    _resetSession();
     setState(() {
       _isLoading = false;
       _errorText = null;
       _suggestions.clear();
     });
     widget.onClear?.call();
+  }
+
+  /// Reset the Places session token so the next search starts a new billing session.
+  void _resetSession() {
+    _sessionToken = null;
+    _lastFetchedQuery = null;
+  }
+
+  /// Ensure a session token exists; create one if this is the start of a new session.
+  String _ensureSessionToken() {
+    _sessionToken ??= _uuid.v4();
+    return _sessionToken!;
   }
 
   void _handleFocusChange() {
@@ -87,7 +120,10 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
   void _onChanged(String value) {
     _debounce?.cancel();
 
-    if (value.trim().isEmpty) {
+    final trimmed = value.trim();
+
+    if (trimmed.isEmpty) {
+      _activeCancelToken?.cancel('Empty input');
       setState(() {
         _isLoading = false;
         _errorText = null;
@@ -96,8 +132,13 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
       return;
     }
 
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      _fetchPredictions(value.trim());
+    // Don't fire API requests for very short queries — reduces unnecessary calls.
+    if (trimmed.length < _minQueryLength) {
+      return;
+    }
+
+    _debounce = Timer(const Duration(milliseconds: 700), () {
+      _fetchPredictions(trimmed);
     });
   }
 
@@ -106,10 +147,27 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
       return;
     }
 
+    // Skip if this exact query was already fetched (e.g. user typed, deleted, retyped).
+    if (query == _lastFetchedQuery && _suggestions.isNotEmpty) {
+      return;
+    }
+
+    // Cancel any in-flight request before starting a new one.
+    _activeCancelToken?.cancel('Superseded by newer query');
+    _activeCancelToken = CancelToken();
+
+    final int generation = ++_fetchGeneration;
+    final String sessionToken = _ensureSessionToken();
+
     setState(() {
       _isLoading = true;
       _errorText = null;
     });
+
+    assert(() {
+      debugPrint('[GOOGLE PLACES] Autocomplete request: "$query" (session=${sessionToken.substring(0, 8)}...)');
+      return true;
+    }());
 
     try {
       final response = await _dio.get(
@@ -118,8 +176,15 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
           'input': query,
           'key': AppEnv.googlePlacesApiKey,
           'language': 'en',
+          'sessiontoken': sessionToken,
         },
+        cancelToken: _activeCancelToken,
       );
+
+      // Discard stale response if a newer request was already launched.
+      if (generation != _fetchGeneration || !mounted) {
+        return;
+      }
 
       final Map<String, dynamic> data = Map<String, dynamic>.from(
         response.data as Map,
@@ -131,9 +196,7 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
         final List<dynamic> predictions =
             data['predictions'] as List<dynamic>? ?? <dynamic>[];
 
-        if (!mounted) {
-          return;
-        }
+        _lastFetchedQuery = query;
 
         setState(() {
           _suggestions
@@ -155,7 +218,12 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
         _buildPlacesErrorMessage(status, errorMessage),
       );
     } catch (error) {
-      if (!mounted) {
+      // Don't treat Dio cancellations as errors.
+      if (error is DioException && error.type == DioExceptionType.cancel) {
+        return;
+      }
+
+      if (generation != _fetchGeneration || !mounted) {
         return;
       }
 
@@ -173,21 +241,44 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
       TextPosition(offset: widget.controller.text.length),
     );
 
+    // Cancel any pending autocomplete request.
+    _activeCancelToken?.cancel('Place selected');
+
+    // Use the same session token that was used for autocomplete requests.
+    // After this Place Details call, the session ends.
+    final String? sessionToken = _sessionToken;
+
     setState(() {
       _isLoading = true;
       _errorText = null;
       _suggestions.clear();
     });
 
+    assert(() {
+      debugPrint('[GOOGLE PLACES] Place Details request: placeId=${suggestion.placeId}'
+          ' (session=${sessionToken?.substring(0, 8) ?? 'none'}...)');
+      return true;
+    }());
+
     try {
+      final queryParams = <String, dynamic>{
+        'place_id': suggestion.placeId,
+        'fields': 'name,formatted_address,geometry',
+        'key': AppEnv.googlePlacesApiKey,
+      };
+
+      // Include session token to complete the billing session.
+      if (sessionToken != null) {
+        queryParams['sessiontoken'] = sessionToken;
+      }
+
       final response = await _dio.get(
         'https://maps.googleapis.com/maps/api/place/details/json',
-        queryParameters: <String, dynamic>{
-          'place_id': suggestion.placeId,
-          'fields': 'name,formatted_address,geometry,address_components,vicinity,types',
-          'key': AppEnv.googlePlacesApiKey,
-        },
+        queryParameters: queryParams,
       );
+
+      // Session is complete — reset for the next search.
+      _resetSession();
 
       final Map<String, dynamic> data = Map<String, dynamic>.from(
         response.data as Map,
@@ -210,9 +301,6 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
       final Map<String, dynamic> location = Map<String, dynamic>.from(
         geometry['location'] as Map? ?? <String, dynamic>{},
       );
-      final List<String> placeTypes = (result['types'] as List<dynamic>? ?? <dynamic>[])
-          .map((dynamic type) => type.toString())
-          .toList();
 
       final place = PlaceSelection(
         placeId: suggestion.placeId,
@@ -220,10 +308,8 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
         description: suggestion.description,
         formattedAddress:
             (result['formatted_address'] as String?) ?? suggestion.description,
-        vicinity: result['vicinity'] as String?,
         lat: '${location['lat'] ?? ''}',
         lng: '${location['lng'] ?? ''}',
-        types: placeTypes,
       );
 
       if (!mounted) {
@@ -403,36 +489,52 @@ class _GooglePlacesInputState extends State<GooglePlacesInput> {
             ),
           ),
           if (_suggestions.isNotEmpty)
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 208),
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                itemCount: _suggestions.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (BuildContext context, int index) {
-                  final suggestion = _suggestions[index];
-                  return ListTile(
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 0,
-                    ),
-                    leading: const Icon(
-                      Icons.location_on_outlined,
-                      size: 18,
-                    ),
-                    title: Text(
-                      suggestion.description,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A2E), // Navy blue
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 208),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: _suggestions.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white24),
+                  itemBuilder: (BuildContext context, int index) {
+                    final suggestion = _suggestions[index];
+                    return ListTile(
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 0,
                       ),
-                    ),
-                    onTap: () => _selectSuggestion(suggestion),
-                  );
-                },
+                      leading: const Icon(
+                        Icons.location_on_outlined,
+                        size: 18,
+                        color: Colors.white70,
+                      ),
+                      title: Text(
+                        suggestion.description,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      onTap: () => _selectSuggestion(suggestion),
+                    );
+                  },
+                ),
               ),
             ),
         ],
@@ -461,6 +563,9 @@ class PlaceSelection {
     required this.lng,
     this.types = const <String>[],
   });
+
+  @override
+  String toString() => 'PlaceSelection(name: $name, lat: $lat, lng: $lng)';
 }
 
 class _PlaceSuggestion {

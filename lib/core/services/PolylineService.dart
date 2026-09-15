@@ -49,6 +49,9 @@ class PolylineService {
   /// Minimum distance change (in meters) to trigger a re-fetch.
   static const double _refreshThresholdMeters = 200;
 
+  /// In-flight route requests to prevent duplicate concurrent calls.
+  final Map<String, Future<DirectionsResult>> _inFlightRequests = {};
+
   /// Fetch a route between [origin] and [destination].
   ///
   /// Returns the cached result if positions haven't moved significantly.
@@ -80,6 +83,29 @@ class PolylineService {
         durationSeconds: 0,
       );
     }
+    
+    final String requestKey = '${origin.latitude},${origin.longitude}-${destination.latitude},${destination.longitude}';
+    
+    // Deduplicate in-flight requests
+    if (_inFlightRequests.containsKey(requestKey)) {
+      return _inFlightRequests[requestKey]!;
+    }
+
+    final Future<DirectionsResult> requestFuture = _executeDirectionsRequest(origin, destination, key);
+    _inFlightRequests[requestKey] = requestFuture;
+
+    try {
+      return await requestFuture;
+    } finally {
+      _inFlightRequests.remove(requestKey);
+    }
+  }
+
+  Future<DirectionsResult> _executeDirectionsRequest(LatLng origin, LatLng destination, String key) async {
+    assert(() {
+      debugPrint('[GOOGLE ROUTES] Directions API Request: $origin -> $destination');
+      return true;
+    }());
 
     try {
       final url = 'https://maps.googleapis.com/maps/api/directions/json'
@@ -211,6 +237,11 @@ class PolylineService {
 
     if (key.isNotEmpty) {
       try {
+        assert(() {
+          debugPrint('[GOOGLE GEOCODING] Reverse Geocoding API Request: $lat, $lng');
+          return true;
+        }());
+
         final url =
             'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$key';
         final response = await _dio.get(url);

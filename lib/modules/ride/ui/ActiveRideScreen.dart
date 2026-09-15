@@ -58,6 +58,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   String _etaDistance = '';
   String _etaDuration = '';
 
+  // Throttle for route fetches during driver tracking (Prime Mode)
+  DateTime? _lastRouteFetchTime;
+
   String? get _effectiveBookingNo {
     if (widget.bookingNo != null && widget.bookingNo!.trim().isNotEmpty) {
       return widget.bookingNo!.trim();
@@ -437,14 +440,27 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   Future<void> _updateDriverToPickupRouteIfNeeded(LatLng newPos) async {
     final status = _bookingData?.status?.trim().toLowerCase() ?? '';
     if (status == 'accepted' || status == 'arrived') {
+      // Throttle: don't request a new route more than once every 30 seconds
+      final now = DateTime.now();
+      if (_lastRouteFetchTime != null && now.difference(_lastRouteFetchTime!) < const Duration(seconds: 30)) {
+        return;
+      }
+
       final pLat = double.tryParse(_bookingData?.pickupLatitude ?? '');
       final pLng = double.tryParse(_bookingData?.pickupLongitude ?? '');
       if (pLat != null && pLng != null && pLat != 0 && pLng != 0) {
         final pickupPos = LatLng(pLat, pLng);
+
+        _lastRouteFetchTime = now;
+
+        assert(() {
+          debugPrint('[GOOGLE ROUTES] Prime Mode driver tracking route check...');
+          return true;
+        }());
+
         final directionsResult = await _polylineService.fetchRoute(
           newPos,
           pickupPos,
-          forceRefresh: true,
         );
         if (directionsResult.points.isNotEmpty && mounted) {
           _polylines.clear();
