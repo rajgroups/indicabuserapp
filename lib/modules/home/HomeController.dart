@@ -73,7 +73,6 @@ class HomeController extends GetxController {
   final VehicleRespository _vehicleRepo = VehicleRespository(ApiClient());
   final VehicleMarkerService _homeMarkerService = Get.put(VehicleMarkerService());
   final RxList<NearbyVehicle> homeNearbyVehicles = <NearbyVehicle>[].obs;
-  Timer? _homeVehiclesTimer;
 
   Timer? _fetchVehiclesDebounce;
 
@@ -99,16 +98,6 @@ class HomeController extends GetxController {
     });
   }
 
-  void startHomeVehiclesPolling() {
-    _homeVehiclesTimer?.cancel();
-    _homeVehiclesTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      fetchHomeNearbyVehicles();
-    });
-  }
-
-  void stopHomeVehiclesPolling() {
-    _homeVehiclesTimer?.cancel();
-  }
   final Rx<LatLng> pickupPoint = defaultPickup.obs;
   final RxString currentAddress = ''.obs;
 
@@ -181,7 +170,6 @@ class HomeController extends GetxController {
   void onClose() {
     _dragRouteDebounce?.cancel();
     _fetchVehiclesDebounce?.cancel();
-    stopHomeVehiclesPolling();
     originController.dispose();
     destController.dispose();
     super.onClose();
@@ -197,7 +185,6 @@ class HomeController extends GetxController {
     originController.text = "Current Location";
     _ensureInitialDropStop();
     await _loadCustomMarkerIcons();
-    startHomeVehiclesPolling();
 
     final token = await _readStoredToken();
 
@@ -1453,6 +1440,7 @@ class HomeController extends GetxController {
           selectedSubCategory.value = mapped.first.subCategories.first;
         }
       }
+      unawaited(fetchHomeNearbyVehicles());
     } catch (error) {
       debugPrint('HomeController.getVehicleType error: $error');
     } finally {
