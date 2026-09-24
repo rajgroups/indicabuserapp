@@ -6,6 +6,7 @@ class Booking {
   final String? driverName;
   final String? vehicleName;
   final String? vehicleNumber;
+  final String? driverPhone;
   final double? estimatedAmount;
   final double? finalAmount;
   final String? pickupAddress;
@@ -17,6 +18,7 @@ class Booking {
     this.status,
     this.startOtp,
     this.driverName,
+    this.driverPhone,
     this.vehicleName,
     this.vehicleNumber,
     this.estimatedAmount,
@@ -39,6 +41,7 @@ class Booking {
       pickupAddress: json['pickup_address'],
       dropAddress: json['drop_address'],
       driverName: driver is Map ? driver['name'] : json['driver_name'],
+      driverPhone: driver is Map ? driver['phone'] : json['driver_phone'],
       vehicleName: vehicle is Map ? vehicle['name'] : json['vehicle_name'],
       vehicleNumber:
           vehicle is Map ? vehicle['vehicle_number'] : json['vehicle_number'],
@@ -54,6 +57,7 @@ class Booking {
       status: dataModel.status,
       startOtp: dataModel.startOtp,
       driverName: dataModel.driverName,
+      driverPhone: dataModel.driverPhone,
       vehicleName: dataModel.vehicleName,
       vehicleNumber: dataModel.vehicleNumber,
       estimatedAmount: (dataModel.estimatedAmount as num?)?.toDouble(),
@@ -67,6 +71,7 @@ class Booking {
         'status': status,
         'start_otp': startOtp,
         'driver_name': driverName,
+        'driver_phone': driverPhone,
         'vehicle_name': vehicleName,
         'vehicle_number': vehicleNumber,
         'estimated_amount': estimatedAmount,

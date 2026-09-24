@@ -41,6 +41,14 @@ class PolylineService {
 
   final Dio _dio = Dio();
 
+  /// Cooldown state to prevent rapid UI API spam
+  DateTime? _lastDirectionsRequestAt;
+  static const Duration _sameRouteCooldown = Duration(seconds: 30);
+  static const Duration _rapidUiCooldown = Duration(seconds: 3);
+
+  DateTime? _lastGoogleGeocodeRequestAt;
+  static const Duration _googleGeocodeCooldown = Duration(seconds: 5);
+
   /// Last fetched result cache.
   DirectionsResult? _cachedResult;
   LatLng? _cachedOrigin;
@@ -62,34 +70,69 @@ class PolylineService {
     LatLng destination, {
     bool forceRefresh = false,
   }) async {
-    // Return cache if positions haven't changed significantly
-    if (!forceRefresh &&
-        _cachedResult != null &&
-        _cachedOrigin != null &&
+    final now = DateTime.now();
+
+    // 1. Fingerprint & In-Flight Protection
+    // Round to 4 decimal places (~11 meters) to deduplicate tiny concurrent GPS variations
+    final String requestKey =
+        '${origin.latitude.toStringAsFixed(4)},${origin.longitude.toStringAsFixed(4)}-${destination.latitude.toStringAsFixed(4)},${destination.longitude.toStringAsFixed(4)}';
+
+    if (_inFlightRequests.containsKey(requestKey)) {
+      assert(() {
+        debugPrint('[DIRECTIONS] BLOCKED — request already running');
+        return true;
+      }());
+      return _inFlightRequests[requestKey]!;
+    }
+
+    // 2. Cache Protection (Protection A)
+    final bool isSimilarRoute = _cachedOrigin != null &&
         _cachedDestination != null &&
+        _cachedResult != null &&
         _distanceBetween(_cachedOrigin!, origin) < _refreshThresholdMeters &&
-        _distanceBetween(_cachedDestination!, destination) <
-            _refreshThresholdMeters) {
-      return _cachedResult!;
+        _distanceBetween(_cachedDestination!, destination) < _refreshThresholdMeters;
+
+    if (isSimilarRoute) {
+      if (forceRefresh) {
+        // Enforce strong 30-second cooldown for the same logical route even if forced
+        if (_lastDirectionsRequestAt != null &&
+            now.difference(_lastDirectionsRequestAt!) < _sameRouteCooldown) {
+          assert(() {
+            debugPrint('[DIRECTIONS] BLOCKED — cooldown (same route forced refresh)');
+            return true;
+          }());
+          return _cachedResult!;
+        }
+      } else {
+        assert(() {
+          debugPrint('[DIRECTIONS] BLOCKED — cached route (no meaningful change)');
+          return true;
+        }());
+        return _cachedResult!;
+      }
+    } else {
+      // 3. Rapid UI Protection
+      // Prevent wild map dragging from generating >200m route requests instantly
+      if (_lastDirectionsRequestAt != null &&
+          now.difference(_lastDirectionsRequestAt!) < _rapidUiCooldown) {
+        assert(() {
+          debugPrint('[DIRECTIONS] BLOCKED — rapid UI cooldown');
+          return true;
+        }());
+        return _cachedResult ?? DirectionsResult.empty;
+      }
     }
 
     final key = AppEnv.googleMapsApiKey;
     if (key.isEmpty) {
-      return DirectionsResult(
-        points: [origin, destination],
-        distanceText: '',
-        durationText: '',
-        distanceMeters: 0,
-        durationSeconds: 0,
-      );
+      return DirectionsResult.empty;
     }
-    
-    final String requestKey = '${origin.latitude},${origin.longitude}-${destination.latitude},${destination.longitude}';
-    
-    // Deduplicate in-flight requests
-    if (_inFlightRequests.containsKey(requestKey)) {
-      return _inFlightRequests[requestKey]!;
-    }
+
+    assert(() {
+      debugPrint('[DIRECTIONS] REQUEST — route changed or cooldown expired');
+      return true;
+    }());
+    _lastDirectionsRequestAt = now;
 
     final Future<DirectionsResult> requestFuture = _executeDirectionsRequest(origin, destination, key);
     _inFlightRequests[requestKey] = requestFuture;
@@ -149,13 +192,7 @@ class PolylineService {
     }
 
     // Fallback: straight line
-    return DirectionsResult(
-      points: [origin, destination],
-      distanceText: '',
-      durationText: '',
-      distanceMeters: 0,
-      durationSeconds: 0,
-    );
+    return DirectionsResult.empty;
   }
 
   void _updateCache(
@@ -173,6 +210,7 @@ class PolylineService {
     _cachedResult = null;
     _cachedOrigin = null;
     _cachedDestination = null;
+    _lastDirectionsRequestAt = null;
   }
 
   /// Decode an encoded polyline string into a list of LatLng points.
@@ -236,29 +274,39 @@ class PolylineService {
         : (AppEnv.hasGooglePlacesApiKey ? AppEnv.googlePlacesApiKey : '');
 
     if (key.isNotEmpty) {
-      try {
-        assert(() {
-          debugPrint('[GOOGLE GEOCODING] Reverse Geocoding API Request: $lat, $lng');
-          return true;
-        }());
+      final now = DateTime.now();
+      if (_lastGoogleGeocodeRequestAt == null ||
+          now.difference(_lastGoogleGeocodeRequestAt!) >= _googleGeocodeCooldown) {
+        _lastGoogleGeocodeRequestAt = now;
+        try {
+          assert(() {
+            debugPrint('[GOOGLE GEOCODING] Reverse Geocoding API Request: $lat, $lng');
+            return true;
+          }());
 
-        final url =
-            'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$key';
-        final response = await _dio.get(url);
+          final url =
+              'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$key';
+          final response = await _dio.get(url);
 
-        if (response.statusCode == 200 && response.data['status'] == 'OK') {
-          final results = response.data['results'] as List;
-          if (results.isNotEmpty) {
-            final addr = results[0]['formatted_address'] as String?;
-            if (addr != null && addr.trim().isNotEmpty) {
-              final formatted = addr.trim();
-              _addressCache[cacheKey] = formatted;
-              return formatted;
+          if (response.statusCode == 200 && response.data['status'] == 'OK') {
+            final results = response.data['results'] as List;
+            if (results.isNotEmpty) {
+              final addr = results[0]['formatted_address'] as String?;
+              if (addr != null && addr.trim().isNotEmpty) {
+                final formatted = addr.trim();
+                _addressCache[cacheKey] = formatted;
+                return formatted;
+              }
             }
           }
+        } catch (e) {
+          debugPrint('PolylineService: Google reverse geocode error: $e');
         }
-      } catch (e) {
-        debugPrint('PolylineService: Google reverse geocode error: $e');
+      } else {
+        assert(() {
+          debugPrint('[GOOGLE GEOCODING] BLOCKED — cooldown active, falling back to Nominatim');
+          return true;
+        }());
       }
     }
 

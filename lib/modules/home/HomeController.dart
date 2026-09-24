@@ -1219,7 +1219,6 @@ class HomeController extends GetxController {
     _dragRouteDebounce?.cancel();
     _dragRouteDebounce = Timer(const Duration(milliseconds: 120), () {
       _updateMarkers();
-      unawaited(updateRoutePolyline(forceRefresh: true));
     });
   }
 

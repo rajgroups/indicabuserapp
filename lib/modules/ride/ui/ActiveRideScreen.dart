@@ -1701,13 +1701,31 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
               Expanded(
                 flex: 3,
                 child: ElevatedButton.icon(
-                  onPressed: () => Get.snackbar(
-                    'Calling Driver',
-                    'Connecting your call...',
-                    backgroundColor: const Color(0xFF0F172A),
-                    colorText: Colors.white,
-                    snackPosition: SnackPosition.TOP,
-                  ),
+                  onPressed: () async {
+                    final phone = _bookingData?.driverPhone;
+                    if (phone != null && phone.isNotEmpty) {
+                      final uri = Uri.parse('tel:$phone');
+                      try {
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri);
+                        } else {
+                          Get.snackbar('Error', 'Could not launch phone dialer.',
+                              backgroundColor: const Color(0xFF0F172A), colorText: Colors.white);
+                        }
+                      } catch (e) {
+                        Get.snackbar('Error', 'Could not launch phone dialer.',
+                            backgroundColor: const Color(0xFF0F172A), colorText: Colors.white);
+                      }
+                    } else {
+                      Get.snackbar(
+                        'Call Failed',
+                        'Driver phone number not available.',
+                        backgroundColor: const Color(0xFF0F172A),
+                        colorText: Colors.white,
+                        snackPosition: SnackPosition.TOP,
+                      );
+                    }
+                  },
                   icon: const Icon(
                     Icons.call_rounded,
                     color: Color(0xFF10B981),

@@ -164,6 +164,24 @@ class _RideSummaryScreenState extends State<RideSummaryScreen>
     }
   }
 
+  Widget _buildFareRow(String label, double value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: _kMuted)),
+          Text(
+            value < 0
+                ? '- ₹${value.abs().toStringAsFixed(2)}'
+                : '₹${value.toStringAsFixed(2)}',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kNavy),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -324,6 +342,23 @@ class _RideSummaryScreenState extends State<RideSummaryScreen>
                             color: _kNavy,
                           ),
                         ),
+                        if (_effectiveBookingData?.fareBreakdown != null) ...[
+                          const SizedBox(height: 16),
+                          Container(height: 1, color: _kBorder),
+                          const SizedBox(height: 12),
+                          if (_effectiveBookingData!.fareBreakdown!.baseFare > 0)
+                            _buildFareRow('Base Fare', _effectiveBookingData!.fareBreakdown!.baseFare),
+                          if (_effectiveBookingData!.fareBreakdown!.distanceCharge > 0)
+                            _buildFareRow('Distance Charge', _effectiveBookingData!.fareBreakdown!.distanceCharge),
+                          if (_effectiveBookingData!.fareBreakdown!.timeCharge > 0)
+                            _buildFareRow('Time Charge', _effectiveBookingData!.fareBreakdown!.timeCharge),
+                          if (_effectiveBookingData!.fareBreakdown!.waitingCharge > 0)
+                            _buildFareRow('Waiting Charge', _effectiveBookingData!.fareBreakdown!.waitingCharge),
+                          if (_effectiveBookingData!.fareBreakdown!.discount > 0)
+                            _buildFareRow('Discount', -_effectiveBookingData!.fareBreakdown!.discount),
+                          if (_effectiveBookingData!.fareBreakdown!.taxAmount > 0)
+                            _buildFareRow('Taxes & Fees (${_effectiveBookingData!.fareBreakdown!.taxPercentage.toStringAsFixed(1)}%)', _effectiveBookingData!.fareBreakdown!.taxAmount),
+                        ],
                         const SizedBox(height: 14),
                         Container(height: 1, color: _kBorder),
                         const SizedBox(height: 12),

@@ -16,11 +16,68 @@ class BookingResponseModel {
     return BookingResponseModel(
       status: rawStatus is bool
           ? rawStatus
-          : (rawStatus.toString() == 'true' || rawStatus.toString() == 'success'),
+          : (rawStatus.toString() == 'true' ||
+                rawStatus.toString() == 'success'),
       message: json['message']?.toString() ?? '',
       data: data is Map<String, dynamic>
           ? BookingDataModel.fromJson(data)
           : null,
+    );
+  }
+}
+
+class FareBreakdown {
+  final double baseFare;
+  final double distanceCharge;
+  final double timeCharge;
+  final double waitingCharge;
+  final double extraCharge;
+  final double discount;
+  final double subtotal;
+  final double taxPercentage;
+  final double taxAmount;
+  final double userTotal;
+  final String commissionType;
+  final double commissionValue;
+  final double commissionAmount;
+  final double driverEarnings;
+
+  const FareBreakdown({
+    this.baseFare = 0.0,
+    this.distanceCharge = 0.0,
+    this.timeCharge = 0.0,
+    this.waitingCharge = 0.0,
+    this.extraCharge = 0.0,
+    this.discount = 0.0,
+    this.subtotal = 0.0,
+    this.taxPercentage = 0.0,
+    this.taxAmount = 0.0,
+    this.userTotal = 0.0,
+    this.commissionType = 'percentage',
+    this.commissionValue = 0.0,
+    this.commissionAmount = 0.0,
+    this.driverEarnings = 0.0,
+  });
+
+  factory FareBreakdown.fromJson(Map<String, dynamic> json) {
+    double parse(dynamic val) =>
+        val != null ? double.tryParse(val.toString()) ?? 0.0 : 0.0;
+
+    return FareBreakdown(
+      baseFare:          parse(json['base_fare']),
+      distanceCharge:    parse(json['distance_charge']),
+      timeCharge:        parse(json['time_charge']),
+      waitingCharge:     parse(json['waiting_charge']),
+      extraCharge:       parse(json['extra_charge']),
+      discount:          parse(json['discount']),
+      subtotal:          parse(json['subtotal']),
+      taxPercentage:     parse(json['tax_percentage']),
+      taxAmount:         parse(json['tax_amount']),
+      userTotal:         parse(json['user_total'] ?? json['total_amount']),
+      commissionType:    json['commission_type']?.toString() ?? 'percentage',
+      commissionValue:   parse(json['commission_value']),
+      commissionAmount:  parse(json['commission_amount']),
+      driverEarnings:    parse(json['driver_earnings']),
     );
   }
 }
@@ -42,6 +99,7 @@ class BookingDataModel {
     this.estimatedAmount,
     this.finalAmount,
     this.driverName,
+    this.driverPhone,
     this.vehicleNumber,
     this.vehicleName,
     this.pickupLatitude,
@@ -54,6 +112,7 @@ class BookingDataModel {
     this.driverLatitude,
     this.driverLongitude,
     required this.requiresDropLocation,
+    this.fareBreakdown,
   });
 
   final int? id;
@@ -71,6 +130,7 @@ class BookingDataModel {
   final double? estimatedAmount;
   final double? finalAmount;
   final String? driverName;
+  final String? driverPhone;
   final String? vehicleNumber;
   final String? vehicleName;
   final String? pickupLatitude;
@@ -83,6 +143,7 @@ class BookingDataModel {
   final String? driverLatitude;
   final String? driverLongitude;
   final bool requiresDropLocation;
+  final FareBreakdown? fareBreakdown;
 
   String? get effectiveCategoryIconUrl {
     final icon = categoryIcon?.trim();
@@ -99,34 +160,41 @@ class BookingDataModel {
   factory BookingDataModel.fromJson(Map<String, dynamic> json) {
     final requiresDrop = json['requires_drop_location'] is bool
         ? json['requires_drop_location'] as bool
-        : (json['requires_drop_location']?.toString() == 'true' || json['drop_location'] != null);
+        : (json['requires_drop_location']?.toString() == 'true' ||
+              json['drop_location'] != null);
 
     String? categoryIcon;
     String? categoryImage;
 
     if (json['category'] is Map<String, dynamic>) {
       final cat = json['category'] as Map<String, dynamic>;
-      categoryIcon = cat['icon_url']?.toString() ??
+      categoryIcon =
+          cat['icon_url']?.toString() ??
           cat['icon']?.toString() ??
           cat['category_icon']?.toString();
-      categoryImage = cat['image_url']?.toString() ??
+      categoryImage =
+          cat['image_url']?.toString() ??
           cat['image']?.toString() ??
           cat['category_image']?.toString();
     }
 
-    categoryIcon ??= json['category_icon']?.toString() ??
+    categoryIcon ??=
+        json['category_icon']?.toString() ??
         json['icon_url']?.toString() ??
         json['icon']?.toString();
-    categoryImage ??= json['category_image']?.toString() ??
+    categoryImage ??=
+        json['category_image']?.toString() ??
         json['image_url']?.toString() ??
         json['image']?.toString();
 
     if (json['vehicle'] is Map<String, dynamic>) {
       final veh = json['vehicle'] as Map<String, dynamic>;
-      categoryIcon ??= veh['category_icon']?.toString() ??
+      categoryIcon ??=
+          veh['category_icon']?.toString() ??
           veh['icon_url']?.toString() ??
           veh['icon']?.toString();
-      categoryImage ??= veh['category_image']?.toString() ??
+      categoryImage ??=
+          veh['category_image']?.toString() ??
           veh['image_url']?.toString() ??
           veh['image']?.toString();
     }
@@ -154,6 +222,9 @@ class BookingDataModel {
       driverName: json['driver'] is Map<String, dynamic>
           ? (json['driver']['name']?.toString())
           : null,
+      driverPhone: json['driver'] is Map<String, dynamic>
+          ? json['driver']['phone']?.toString()
+          : json['driver_phone']?.toString(),
       vehicleNumber: json['vehicle'] is Map<String, dynamic>
           ? (json['vehicle']['vehicle_number']?.toString())
           : null,
@@ -167,7 +238,8 @@ class BookingDataModel {
       pickupLongitude: _getLocationField(json, 'pickup_location', 'longitude'),
       dropLatitude: _getLocationField(json, 'drop_location', 'latitude'),
       dropLongitude: _getLocationField(json, 'drop_location', 'longitude'),
-      categoryName: json['category_name']?.toString() ??
+      categoryName:
+          json['category_name']?.toString() ??
           (json['category'] is Map<String, dynamic>
               ? json['category']['name']?.toString()
               : null),
@@ -180,10 +252,17 @@ class BookingDataModel {
           ? json['driver']['longitude']?.toString()
           : null,
       requiresDropLocation: requiresDrop,
+      fareBreakdown: json['fare'] is Map<String, dynamic>
+          ? FareBreakdown.fromJson(json['fare'] as Map<String, dynamic>)
+          : null,
     );
   }
 
-  static String? _getLocationField(Map<String, dynamic> json, String relationKey, String fieldKey) {
+  static String? _getLocationField(
+    Map<String, dynamic> json,
+    String relationKey,
+    String fieldKey,
+  ) {
     final loc = json[relationKey];
     if (loc is Map<String, dynamic>) {
       if (loc.containsKey(fieldKey)) {
@@ -202,7 +281,8 @@ class BookingDataModel {
       return null;
     }
     final trimmed = address.trim();
-    if (trimmed.startsWith('Location (') || trimmed.startsWith('Enable GOOGLE_')) {
+    if (trimmed.startsWith('Location (') ||
+        trimmed.startsWith('Enable GOOGLE_')) {
       return 'Pickup Location';
     }
     return trimmed;

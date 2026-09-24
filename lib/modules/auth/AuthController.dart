@@ -15,6 +15,7 @@ class AuthController extends GetxController {
 
   final mobileController = TextEditingController();
   final otpController = TextEditingController();
+  final referralCodeController = TextEditingController();
 
   final RxBool isLoading = false.obs;
   RxString selectedCountryCode = "+91".obs;
@@ -32,7 +33,10 @@ class AuthController extends GetxController {
       isLoading.value = true;
       Helpers.loading();
 
-      var response = await _service.sendOtp(LoginRequest(mobile: mobile));
+      var response = await _service.sendOtp(LoginRequest(
+        mobile: mobile,
+        referralCode: referralCodeController.text.trim(),
+      ));
       print('Send OTP API Response:$response');
 
       Helpers.close(); // Close the loading dialog

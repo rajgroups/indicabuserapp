@@ -11,9 +11,9 @@ import '../../../shared/widgets/social_button.dart';
 import '../AuthController.dart';
 
 // ─── Rapido Driver Palette & Fonts ───────────────────────────────────────────
-const _kNavy  = Color(0xFF1A1A2E);
+const _kNavy = Color(0xFF1A1A2E);
 const _kGreen = Color(0xFF00C853);
-const _kBg    = Color(0xFFF5F6FA);
+const _kBg = Color(0xFFF5F6FA);
 
 class LoginScreen extends GetView<AuthController> {
   const LoginScreen({super.key});
@@ -36,9 +36,7 @@ class LoginScreen extends GetView<AuthController> {
             return SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: IntrinsicHeight(
                   child: Padding(
                     padding: const EdgeInsets.all(18),
@@ -92,7 +90,9 @@ class LoginScreen extends GetView<AuthController> {
                                         ),
 
                                         /// Live Digit Validation Counter
-                                        ValueListenableBuilder<TextEditingValue>(
+                                        ValueListenableBuilder<
+                                          TextEditingValue
+                                        >(
                                           valueListenable:
                                               controller.mobileController,
                                           builder: (context, value, child) {
@@ -102,10 +102,13 @@ class LoginScreen extends GetView<AuthController> {
                                               children: [
                                                 if (isValid)
                                                   Container(
-                                                    margin: const EdgeInsets
-                                                        .only(right: 4),
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                          right: 4,
+                                                        ),
                                                     child: const Icon(
-                                                      Icons.check_circle_rounded,
+                                                      Icons
+                                                          .check_circle_rounded,
                                                       color: _kGreen,
                                                       size: 14,
                                                     ),
@@ -149,22 +152,25 @@ class LoginScreen extends GetView<AuthController> {
                                             () => Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 6,
-                                              ),
+                                                    horizontal: 8,
+                                                    vertical: 6,
+                                                  ),
                                               decoration: BoxDecoration(
                                                 color: Colors.white,
                                                 borderRadius:
                                                     BorderRadius.circular(12),
                                                 border: Border.all(
-                                                  color: const Color(0xFFEEEFF3),
+                                                  color: const Color(
+                                                    0xFFEEEFF3,
+                                                  ),
                                                   width: 1,
                                                 ),
                                               ),
                                               child: DropdownButtonHideUnderline(
                                                 child: DropdownButton<String>(
                                                   value: controller
-                                                      .selectedCountryCode.value,
+                                                      .selectedCountryCode
+                                                      .value,
                                                   isDense: true,
                                                   icon: const Icon(
                                                     Icons
@@ -173,9 +179,12 @@ class LoginScreen extends GetView<AuthController> {
                                                     color:
                                                         AppColors.textSecondary,
                                                   ),
-                                                  items: countryCodes.map((item) {
+                                                  items: countryCodes.map((
+                                                    item,
+                                                  ) {
                                                     return DropdownMenuItem<
-                                                        String>(
+                                                      String
+                                                    >(
                                                       value: item["code"],
                                                       child: Row(
                                                         mainAxisSize:
@@ -185,8 +194,8 @@ class LoginScreen extends GetView<AuthController> {
                                                             item["flag"]!,
                                                             style:
                                                                 const TextStyle(
-                                                              fontSize: 14,
-                                                            ),
+                                                                  fontSize: 14,
+                                                                ),
                                                           ),
                                                           const SizedBox(
                                                             width: 4,
@@ -195,11 +204,12 @@ class LoginScreen extends GetView<AuthController> {
                                                             item["code"]!,
                                                             style:
                                                                 const TextStyle(
-                                                              fontSize: 14,
-                                                              fontWeight:
-                                                                  FontWeight.w700,
-                                                              color: _kNavy,
-                                                            ),
+                                                                  fontSize: 14,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                  color: _kNavy,
+                                                                ),
                                                           ),
                                                         ],
                                                       ),
@@ -208,8 +218,9 @@ class LoginScreen extends GetView<AuthController> {
                                                   onChanged: (val) {
                                                     if (val != null) {
                                                       controller
-                                                          .selectedCountryCode
-                                                          .value = val;
+                                                              .selectedCountryCode
+                                                              .value =
+                                                          val;
                                                     }
                                                   },
                                                 ),
@@ -232,7 +243,8 @@ class LoginScreen extends GetView<AuthController> {
                                                 letterSpacing: 1.0,
                                               ),
                                               decoration: InputDecoration(
-                                                hintText: "Enter 10-digit mobile",
+                                                hintText:
+                                                    "Enter 10-digit mobile",
                                                 hintStyle: TextStyle(
                                                   fontSize: 14,
                                                   color: AppColors.textMuted
@@ -243,8 +255,8 @@ class LoginScreen extends GetView<AuthController> {
                                                 border: InputBorder.none,
                                                 contentPadding:
                                                     const EdgeInsets.symmetric(
-                                                  vertical: 12,
-                                                ),
+                                                      vertical: 12,
+                                                    ),
                                               ),
                                               inputFormatters: [
                                                 FilteringTextInputFormatter
@@ -282,6 +294,60 @@ class LoginScreen extends GetView<AuthController> {
                                       ),
                                     ),
 
+                                    const SizedBox(height: 16),
+
+                                    const Text(
+                                      'Referral Code (Optional)',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: _kNavy,
+                                        fontFamily: 'SF Pro Text',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF5F6FA),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: const Color(0xFFEEEFF3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 2,
+                                      ),
+                                      child: TextField(
+                                        controller:
+                                            controller.referralCodeController,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          color: _kNavy,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.0,
+                                        ),
+                                        textCapitalization:
+                                            TextCapitalization.characters,
+                                        decoration: InputDecoration(
+                                          hintText: "Enter referral code",
+                                          hintStyle: TextStyle(
+                                            fontSize: 14,
+                                            color: AppColors.textMuted
+                                                .withValues(alpha: 0.7),
+                                            fontWeight: FontWeight.w400,
+                                            letterSpacing: 0,
+                                          ),
+                                          border: InputBorder.none,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                vertical: 12,
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+
                                     const SizedBox(height: 18),
 
                                     /// Gradient Action Button (Matching Driver App LoginView)
@@ -304,29 +370,33 @@ class LoginScreen extends GetView<AuthController> {
                                           ),
                                           child: Ink(
                                             decoration: BoxDecoration(
-                                              gradient: controller.isLoading.value
+                                              gradient:
+                                                  controller.isLoading.value
                                                   ? null
                                                   : const LinearGradient(
                                                       colors: [
                                                         _kNavy,
                                                         Color(0xFF2D2D4E),
                                                       ],
-                                                      begin: Alignment.centerLeft,
-                                                      end: Alignment.centerRight,
+                                                      begin:
+                                                          Alignment.centerLeft,
+                                                      end:
+                                                          Alignment.centerRight,
                                                     ),
                                               color: controller.isLoading.value
                                                   ? const Color(0xFFEEEFF3)
                                                   : null,
-                                              borderRadius: BorderRadius.circular(
-                                                24,
-                                              ),
-                                              boxShadow: controller
-                                                      .isLoading.value
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                              boxShadow:
+                                                  controller.isLoading.value
                                                   ? null
                                                   : [
                                                       BoxShadow(
                                                         color: _kNavy
-                                                            .withValues(alpha: 0.30),
+                                                            .withValues(
+                                                              alpha: 0.30,
+                                                            ),
                                                         blurRadius: 12,
                                                         offset: const Offset(
                                                           0,
@@ -420,14 +490,18 @@ class LoginScreen extends GetView<AuthController> {
                                     SocialButton(
                                       icon: Icons.g_mobiledata_rounded,
                                       label: AppStrings.sign_google,
-                                      onTap: () => Helpers.showComingSoon('Google Sign In'),
+                                      onTap: () => Helpers.showComingSoon(
+                                        'Google Sign In',
+                                      ),
                                       isGoogle: true,
                                     ),
                                     const SizedBox(height: 10),
                                     SocialButton(
                                       icon: Icons.apple_rounded,
                                       label: AppStrings.sign_apple,
-                                      onTap: () => Helpers.showComingSoon('Apple Sign In'),
+                                      onTap: () => Helpers.showComingSoon(
+                                        'Apple Sign In',
+                                      ),
                                       isGoogle: false,
                                     ),
                                   ],
@@ -462,7 +536,9 @@ class LoginScreen extends GetView<AuthController> {
                                   ),
                                   TextSpan(
                                     text: " ${AppStrings.and_sign} ",
-                                    style: TextStyle(color: AppColors.textMuted),
+                                    style: TextStyle(
+                                      color: AppColors.textMuted,
+                                    ),
                                   ),
                                   TextSpan(
                                     text: AppStrings.privacy,

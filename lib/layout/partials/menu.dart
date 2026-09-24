@@ -8,6 +8,7 @@ import 'package:indicab/modules/profile/ProfileController.dart';
 import 'package:indicab/modules/profile/ui/EditProfileScreen.dart';
 import 'package:indicab/modules/auth/AuthController.dart';
 import 'package:indicab/core/routes/names.dart';
+import 'package:indicab/modules/referral/ui/ReferralView.dart' as indicab_referral;
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kNavy   = Color(0xFF1A1A2E);
@@ -246,6 +247,15 @@ class ProfileScreen extends StatelessWidget {
                             subtitle: 'Save on your rides',
                             isComingSoon: true,
                             onTap: () => Helpers.showComingSoon('Offers & Coupons'),
+                          ),
+                          _Divider(),
+                          _MenuItem(
+                            icon: Icons.card_giftcard_rounded,
+                            iconBg: const Color(0xFF00C853).withValues(alpha: 0.10),
+                            iconColor: const Color(0xFF00C853),
+                            title: 'Refer & Earn',
+                            subtitle: 'Invite friends, earn rewards',
+                            onTap: () => Get.to(() => const indicab_referral.ReferralView()),
                           ),
                         ],
                       ),
