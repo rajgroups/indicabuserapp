@@ -113,6 +113,10 @@ class BookingDataModel {
     this.driverLongitude,
     required this.requiresDropLocation,
     this.fareBreakdown,
+    this.startedAt,
+    this.completedAt,
+    this.distanceKm,
+    this.paymentMethod,
   });
 
   final int? id;
@@ -144,6 +148,10 @@ class BookingDataModel {
   final String? driverLongitude;
   final bool requiresDropLocation;
   final FareBreakdown? fareBreakdown;
+  final String? startedAt;
+  final String? completedAt;
+  final double? distanceKm;
+  final String? paymentMethod;
 
   String? get effectiveCategoryIconUrl {
     final icon = categoryIcon?.trim();
@@ -255,6 +263,12 @@ class BookingDataModel {
       fareBreakdown: json['fare'] is Map<String, dynamic>
           ? FareBreakdown.fromJson(json['fare'] as Map<String, dynamic>)
           : null,
+      startedAt: json['started_at']?.toString(),
+      completedAt: json['completed_at']?.toString(),
+      distanceKm: json['usage'] is Map<String, dynamic> && json['usage']['distance_km'] != null
+          ? double.tryParse(json['usage']['distance_km'].toString())
+          : null,
+      paymentMethod: json['payment_method']?.toString(),
     );
   }
 

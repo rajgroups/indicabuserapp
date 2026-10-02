@@ -164,6 +164,22 @@ class _RideSummaryScreenState extends State<RideSummaryScreen>
     }
   }
 
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: _kMuted)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kNavy),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFareRow(String label, double value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -180,6 +196,36 @@ class _RideSummaryScreenState extends State<RideSummaryScreen>
         ],
       ),
     );
+  }
+
+  String _formatDateTime(String? dateStr) {
+    if (dateStr == null) return '--';
+    try {
+      final dt = DateTime.parse(dateStr).toLocal();
+      final hours = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+      final minutes = dt.minute.toString().padLeft(2, '0');
+      
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]} ${dt.year}, $hours:$minutes $ampm';
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
+  String _calculateDuration() {
+    final startStr = _effectiveBookingData?.startedAt;
+    final endStr = _effectiveBookingData?.completedAt;
+    if (startStr == null || endStr == null) return '--';
+    try {
+      final start = DateTime.parse(startStr);
+      final end = DateTime.parse(endStr);
+      final diff = end.difference(start).inMinutes;
+      if (diff < 0) return '0 min';
+      return '$diff min';
+    } catch (_) {
+      return '--';
+    }
   }
 
   @override
@@ -320,6 +366,35 @@ class _RideSummaryScreenState extends State<RideSummaryScreen>
                   ),
                   const SizedBox(height: 14),
 
+                  // ── Trip Details ───────────────────────────────────
+                  if (_effectiveBookingData?.startedAt != null || _effectiveBookingData?.completedAt != null)
+                    _Card(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'TRIP DETAILS',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: _kGreen,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (_effectiveBookingData?.startedAt != null)
+                            _buildDetailRow('Ride Started', _formatDateTime(_effectiveBookingData?.startedAt)),
+                          if (_effectiveBookingData?.completedAt != null)
+                            _buildDetailRow('Ride Ended', _formatDateTime(_effectiveBookingData?.completedAt)),
+                          _buildDetailRow('Duration', _calculateDuration()),
+                          if (_effectiveBookingData?.distanceKm != null)
+                            _buildDetailRow('Final Distance', '${_effectiveBookingData!.distanceKm!.toStringAsFixed(2)} km'),
+                        ],
+                      ),
+                    ),
+                  if (_effectiveBookingData?.startedAt != null || _effectiveBookingData?.completedAt != null)
+                    const SizedBox(height: 14),
+
                   // ── Fare card ──────────────────────────────────────
                   _Card(
                     child: Column(
@@ -380,10 +455,14 @@ class _RideSummaryScreenState extends State<RideSummaryScreen>
                               ),
                             ),
                             const SizedBox(width: 10),
-                            const Expanded(
+                            Expanded(
                               child: Text(
-                                'Paid via Cash / UPI',
-                                style: TextStyle(
+                                _effectiveBookingData?.paymentMethod == 'cash' 
+                                    ? 'Paid via Cash' 
+                                    : (_effectiveBookingData?.paymentMethod == 'online' || _effectiveBookingData?.paymentMethod == 'wallet' 
+                                        ? 'Paid Online' 
+                                        : 'Paid via Cash / UPI'),
+                                style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                   color: _kNavy,
