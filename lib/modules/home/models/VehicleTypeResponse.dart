@@ -129,6 +129,8 @@ class ApiSubCategory {
   final double? perHourPrice;
   final String? priceType;
   final bool dropLocationRequired;
+  final String? iconUrl;
+  final String? imageUrl;
 
   ApiSubCategory({
     required this.id,
@@ -144,6 +146,8 @@ class ApiSubCategory {
     this.perHourPrice,
     this.priceType,
     this.dropLocationRequired = true,
+    this.iconUrl,
+    this.imageUrl,
   });
 
   factory ApiSubCategory.fromJson(Map<String, dynamic> json) {
@@ -232,6 +236,8 @@ class ApiSubCategory {
         json['drop_location_required'],
         defaultValue: true,
       ),
+      iconUrl: json['icon_url']?.toString(),
+      imageUrl: json['image_url']?.toString(),
     );
   }
 

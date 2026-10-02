@@ -86,7 +86,7 @@ class VehicleDetailsSheet extends StatelessWidget {
                             accentColor: option.accentColor,
                             subCategory: subCategory,
                             icon: option.icon,
-                            networkIconUrl: option.networkIconUrl,
+                            networkIconUrl: subCategory.networkIconUrl ?? option.networkIconUrl,
                             hasDropLocation: hasDropLocation,
                             distanceKm: distanceKm,
                             isSelected: selectedSubCategory?.id == subCategory.id,

@@ -1635,6 +1635,7 @@ class HomeController extends GetxController {
               seats: subCategory.seats,
               estimatedFare: subCategory.estimatedFare ?? subCategory.price,
               dropLocationRequired: subCategory.dropLocationRequired,
+              networkIconUrl: subCategory.iconUrl ?? subCategory.imageUrl,
             ),
           )
           .toList(),
