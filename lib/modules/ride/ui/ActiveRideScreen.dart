@@ -11,7 +11,7 @@ import 'package:indicab/core/config/Config.dart';
 import 'package:indicab/core/services/SocketService.dart';
 import 'package:indicab/core/services/AppConfigService.dart';
 import 'package:indicab/core/services/DriverMarkerAnimator.dart';
-import 'package:indicab/core/services/PolylineService.dart';
+
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/network/client.dart';
 import 'package:indicab/core/network/network_exceptions.dart';
@@ -39,8 +39,6 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   final Completer<GoogleMapController> _mapController = Completer();
   final Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
-  final PolylineService _polylineService = PolylineService();
-
   late final DriverMarkerAnimator _driverAnimator;
 
   BookingDataModel? _bookingData;
@@ -52,20 +50,16 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   bool _isFetchingBooking = false;
   String? _lastBookingSnapshot;
 
-  String? _lastPolylineStatus;
-
-  // ETA info from the Directions API (fetched once per phase)
+  // ETA info from the local calculation
   String _etaDistance = '';
   String _etaDuration = '';
-
-  // Throttle for route fetches during driver tracking (Prime Mode)
-  DateTime? _lastRouteFetchTime;
 
   String? get _effectiveBookingNo {
     if (widget.bookingNo != null && widget.bookingNo!.trim().isNotEmpty) {
       return widget.bookingNo!.trim();
     }
-    if (_bookingData?.bookingNo != null && _bookingData!.bookingNo!.trim().isNotEmpty) {
+    if (_bookingData?.bookingNo != null &&
+        _bookingData!.bookingNo!.trim().isNotEmpty) {
       return _bookingData!.bookingNo!.trim();
     }
     if (Get.arguments is Map && Get.arguments['booking_no'] != null) {
@@ -99,7 +93,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         fullUrl = '$baseOrigin/storage/$trimmed';
       }
 
-      final request = await HttpClient().getUrl(Uri.parse(fullUrl)).timeout(const Duration(seconds: 4));
+      final request = await HttpClient()
+          .getUrl(Uri.parse(fullUrl))
+          .timeout(const Duration(seconds: 4));
       final response = await request.close();
       if (response.statusCode == 200) {
         final bytes = await response.fold<List<int>>(
@@ -112,7 +108,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
             targetWidth: 110,
           );
           final frame = await codec.getNextFrame();
-          final byteData = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+          final byteData = await frame.image.toByteData(
+            format: ui.ImageByteFormat.png,
+          );
           if (byteData != null && mounted) {
             setState(() {
               _customCategoryMarkerIcon = BitmapDescriptor.bytes(
@@ -124,7 +122,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         }
       }
     } catch (e) {
-      debugPrint('Custom category marker load error ($iconUrl), using default marker fallback: $e');
+      debugPrint(
+        'Custom category marker load error ($iconUrl), using default marker fallback: $e',
+      );
     }
   }
 
@@ -152,11 +152,15 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   @override
   void initState() {
     super.initState();
-    _bookingData = widget.bookingData ??
-        (Get.arguments is Map && Get.arguments['booking_data'] is BookingDataModel
+    _bookingData =
+        widget.bookingData ??
+        (Get.arguments is Map &&
+                Get.arguments['booking_data'] is BookingDataModel
             ? Get.arguments['booking_data'] as BookingDataModel
             : null);
-    _lastBookingSnapshot = _bookingData == null ? null : _bookingSnapshot(_bookingData!);
+    _lastBookingSnapshot = _bookingData == null
+        ? null
+        : _bookingSnapshot(_bookingData!);
 
     _driverAnimator = DriverMarkerAnimator(vsync: this);
     _driverAnimator.onUpdate = _onDriverAnimationTick;
@@ -198,8 +202,6 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     // Single initial API fetch
     _fetchBookingDetails(silent: _bookingData != null);
 
-
-
     // Subscribe to WebSocket events
     final socketService = Get.find<SocketService>();
     socketService.on('driver_location_update', _onDriverLocationUpdate);
@@ -211,9 +213,12 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   Timer? _economyPollingTimer;
 
   void _startEconomyPollingIfNeeded() {
-    if (Get.isRegistered<AppConfigService>() && Get.find<AppConfigService>().isEconomyMode) {
+    if (Get.isRegistered<AppConfigService>() &&
+        Get.find<AppConfigService>().isEconomyMode) {
       _economyPollingTimer?.cancel();
-      _economyPollingTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      _economyPollingTimer = Timer.periodic(const Duration(seconds: 10), (
+        timer,
+      ) {
         _fetchBookingDetails(silent: true);
       });
     }
@@ -404,7 +409,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     final dLng = (b.longitude - a.longitude) * math.pi / 180;
     final sinDLat = math.sin(dLat / 2);
     final sinDLng = math.sin(dLng / 2);
-    final h = sinDLat * sinDLat +
+    final h =
+        sinDLat * sinDLat +
         math.cos(a.latitude * math.pi / 180) *
             math.cos(b.latitude * math.pi / 180) *
             sinDLng *
@@ -434,50 +440,76 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
     _driverPosition = newPos;
     _driverAnimator.animateTo(newPos, bearing: bearing);
-    _updateDriverToPickupRouteIfNeeded(newPos);
+    _updateLiveTrackingRoute(newPos);
   }
 
-  Future<void> _updateDriverToPickupRouteIfNeeded(LatLng newPos) async {
+  void _updateLiveTrackingRoute(LatLng newPos) {
     final status = _bookingData?.status?.trim().toLowerCase() ?? '';
-    if (status == 'accepted' || status == 'arrived') {
-      // Throttle: don't request a new route more than once every 30 seconds
-      final now = DateTime.now();
-      if (_lastRouteFetchTime != null && now.difference(_lastRouteFetchTime!) < const Duration(seconds: 30)) {
-        return;
-      }
 
+    LatLng? targetPos;
+    if (status == 'accepted' || status == 'arrived') {
       final pLat = double.tryParse(_bookingData?.pickupLatitude ?? '');
       final pLng = double.tryParse(_bookingData?.pickupLongitude ?? '');
       if (pLat != null && pLng != null && pLat != 0 && pLng != 0) {
-        final pickupPos = LatLng(pLat, pLng);
-
-        _lastRouteFetchTime = now;
-
-        assert(() {
-          debugPrint('[GOOGLE ROUTES] Prime Mode driver tracking route check...');
-          return true;
-        }());
-
-        final directionsResult = await _polylineService.fetchRoute(
-          newPos,
-          pickupPos,
-        );
-        if (directionsResult.points.isNotEmpty && mounted) {
-          _polylines.clear();
-          _polylines.add(
-            Polyline(
-              polylineId: const PolylineId('route'),
-              points: directionsResult.points,
-              color: AppColors.primary,
-              width: 5,
-            ),
-          );
-          setState(() {
-            _etaDistance = directionsResult.distanceText;
-            _etaDuration = directionsResult.durationText;
-          });
-        }
+        targetPos = LatLng(pLat, pLng);
       }
+    } else if (status == 'started') {
+      final dLat = double.tryParse(_bookingData?.dropLatitude ?? '');
+      final dLng = double.tryParse(_bookingData?.dropLongitude ?? '');
+      if (dLat != null && dLng != null && dLat != 0 && dLng != 0) {
+        targetPos = LatLng(dLat, dLng);
+      }
+    }
+
+    if (targetPos != null && mounted) {
+      assert(() {
+        debugPrint('LIVE_TRACKING: driver location updated');
+        debugPrint('LIVE_TRACKING: local straight line updated');
+        return true;
+      }());
+
+      _polylines.clear();
+      _polylines.add(
+        Polyline(
+          polylineId: const PolylineId('live_driver_line'),
+          points: [newPos, targetPos],
+          color: AppColors.primary,
+          width: 5,
+        ),
+      );
+
+      final distanceMeters = _distanceBetween(newPos, targetPos);
+      assert(() {
+        debugPrint(
+          'LIVE_TRACKING: local distance calculated: ${distanceMeters.round()} meters',
+        );
+        return true;
+      }());
+
+      // Estimate duration: 30 km/h = 8.33 m/s
+      final durationSeconds = (distanceMeters / 8.33).round();
+      final minutes = durationSeconds ~/ 60;
+
+      String distanceText = '';
+      if (distanceMeters < 1000) {
+        distanceText = '${distanceMeters.round()} m';
+      } else {
+        distanceText = '${(distanceMeters / 1000).toStringAsFixed(1)} km';
+      }
+
+      String durationText = '';
+      if (minutes < 60) {
+        durationText = 'Approx. $minutes min';
+      } else {
+        final hours = minutes ~/ 60;
+        final remainingMins = minutes % 60;
+        durationText = 'Approx. $hours h $remainingMins min';
+      }
+
+      setState(() {
+        _etaDistance = distanceText;
+        _etaDuration = durationText;
+      });
     }
   }
 
@@ -495,7 +527,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
     final bookingNo = bookingMap['booking_no']?.toString().trim();
     final currentNo = _effectiveBookingNo;
-    if (bookingNo != null && currentNo != null && bookingNo.isNotEmpty && bookingNo != currentNo) {
+    if (bookingNo != null &&
+        currentNo != null &&
+        bookingNo.isNotEmpty &&
+        bookingNo != currentNo) {
       return;
     }
 
@@ -551,7 +586,6 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       }
       return;
     }
-
 
     final snapshot = _bookingSnapshot(newBooking);
     if (snapshot == _lastBookingSnapshot) return;
@@ -632,43 +666,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       dropPosition = LatLng(dropLat, dropLng);
     }
 
-    // Determine the phase-appropriate polyline
-    // Only fetch if the status phase has changed
-    final phaseKey = _phaseKeyFor(status);
-    if (phaseKey != _lastPolylineStatus) {
-      _lastPolylineStatus = phaseKey;
-      _polylineService.clearCache();
-
-      DirectionsResult? directionsResult;
-
-      if (phaseKey == 'en_route_to_pickup' && _driverPosition != null) {
-        // Driver → Pickup
-        directionsResult = await _polylineService.fetchRoute(
-          _driverPosition!,
-          pickupPosition,
-        );
-      } else if (phaseKey == 'ride_started' &&
-          dropPosition != null) {
-        // Pickup → Destination (one-time fetch)
-        directionsResult = await _polylineService.fetchRoute(
-          pickupPosition,
-          dropPosition,
-        );
-      }
-
-      if (directionsResult != null && mounted) {
-        _polylines.clear();
-        _polylines.add(
-          Polyline(
-            polylineId: const PolylineId('route'),
-            points: directionsResult.points,
-            color: AppColors.primary,
-            width: 5,
-          ),
-        );
-        _etaDistance = directionsResult.distanceText;
-        _etaDuration = directionsResult.durationText;
-      }
+    if (_driverPosition != null) {
+      _updateLiveTrackingRoute(_driverPosition!);
     }
 
     // Build markers (without the driver marker — that's handled by the animator)
@@ -741,19 +740,6 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     }
   }
 
-  /// Maps booking status to a polyline phase key.
-  String _phaseKeyFor(String status) {
-    switch (status) {
-      case 'accepted':
-      case 'arrived':
-        return 'en_route_to_pickup';
-      case 'started':
-        return 'ride_started';
-      default:
-        return status;
-    }
-  }
-
   Future<void> _adjustMapBounds() async {
     if (!mounted || !_mapController.isCompleted) return;
 
@@ -779,9 +765,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         southwest: LatLng(minLat, minLng),
       );
 
-      await controller.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, 80),
-      );
+      await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
     }
   }
 
@@ -791,7 +775,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
   void _showDriverArrivedSheet() {
     // Ensure we attempt to load OTP if missing
-    if (_bookingData?.startOtp == null || _bookingData!.startOtp!.trim().isEmpty) {
+    if (_bookingData?.startOtp == null ||
+        _bookingData!.startOtp!.trim().isEmpty) {
       _fetchBookingDetails(silent: true);
     }
 
@@ -856,7 +841,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                 ),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A1A2E),
                     borderRadius: BorderRadius.circular(20),
@@ -882,9 +870,13 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                             ? otpStr.split('').join('  ')
                             : 'Waiting for OTP...',
                         style: TextStyle(
-                          fontSize: (otpStr != null && otpStr.length > 4) ? 26 : 36,
+                          fontSize: (otpStr != null && otpStr.length > 4)
+                              ? 26
+                              : 36,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: (otpStr != null && otpStr.length > 4) ? 4 : 6,
+                          letterSpacing: (otpStr != null && otpStr.length > 4)
+                              ? 4
+                              : 6,
                           color: Colors.white,
                         ),
                       ),
@@ -908,10 +900,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                   ),
                   child: const Text(
                     'OK, GOT IT',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                   ),
                 ),
               ),
@@ -1021,9 +1010,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       return;
     }
 
-    final uri = Uri.parse(
-      'google.navigation:q=$destLat,$destLng&mode=d',
-    );
+    final uri = Uri.parse('google.navigation:q=$destLat,$destLng&mode=d');
 
     // Fallback to Google Maps web URL
     final fallbackUri = Uri.parse(
@@ -1063,10 +1050,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   String get _bookingNoLabel =>
       _bookingData?.bookingNo ?? widget.bookingNo ?? 'Ride in progress';
 
-  String get _driverName =>
-      _bookingData?.driverName?.trim().isNotEmpty == true
-          ? _bookingData!.driverName!.trim()
-          : 'Driver';
+  String get _driverName => _bookingData?.driverName?.trim().isNotEmpty == true
+      ? _bookingData!.driverName!.trim()
+      : 'Driver';
 
   String get _vehicleLabel {
     final parts = <String>[
@@ -1128,7 +1114,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     final isAccepted = status == 'accepted';
     final isArrived = status == 'arrived';
     final otp = _bookingData?.startOtp;
-    final fare = (_bookingData?.finalAmount != null && _bookingData!.finalAmount! > 0)
+    final fare =
+        (_bookingData?.finalAmount != null && _bookingData!.finalAmount! > 0)
         ? _bookingData!.finalAmount
         : _bookingData?.estimatedAmount;
 
@@ -1172,9 +1159,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                     onTap: () {
                       Get.offAllNamed(
                         RouteNames.home,
-                        arguments: <String, dynamic>{
-                          'from_active_ride': true,
-                        },
+                        arguments: <String, dynamic>{'from_active_ride': true},
                       );
                     },
                     borderRadius: BorderRadius.circular(18),
@@ -1361,13 +1346,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
               return Container(
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius:
-                      BorderRadius.vertical(top: Radius.circular(28)),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                   border: Border(
-                    top: BorderSide(
-                      color: Color(0xFFF5B800),
-                      width: 2.5,
-                    ),
+                    top: BorderSide(color: Color(0xFFF5B800), width: 2.5),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -1709,12 +1690,20 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri);
                         } else {
-                          Get.snackbar('Error', 'Could not launch phone dialer.',
-                              backgroundColor: const Color(0xFF0F172A), colorText: Colors.white);
+                          Get.snackbar(
+                            'Error',
+                            'Could not launch phone dialer.',
+                            backgroundColor: const Color(0xFF0F172A),
+                            colorText: Colors.white,
+                          );
                         }
                       } catch (e) {
-                        Get.snackbar('Error', 'Could not launch phone dialer.',
-                            backgroundColor: const Color(0xFF0F172A), colorText: Colors.white);
+                        Get.snackbar(
+                          'Error',
+                          'Could not launch phone dialer.',
+                          backgroundColor: const Color(0xFF0F172A),
+                          colorText: Colors.white,
+                        );
                       }
                     } else {
                       Get.snackbar(
@@ -1755,8 +1744,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
               Expanded(
                 flex: 2,
                 child: OutlinedButton(
-                  onPressed:
-                      (_isCancelling || isStarted) ? null : _handleCancelRide,
+                  onPressed: (_isCancelling || isStarted)
+                      ? null
+                      : _handleCancelRide,
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: BorderSide(
@@ -1808,9 +1798,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     bool isArrived,
   ) {
     final rawOtp = otp?.trim() ?? '';
-    final digits = rawOtp.isNotEmpty
-        ? rawOtp.split('')
-        : ['•', '•', '•', '•'];
+    final digits = rawOtp.isNotEmpty ? rawOtp.split('') : ['•', '•', '•', '•'];
     final isLongOtp = digits.length > 4;
     final boxWidth = isLongOtp ? 36.0 : 48.0;
     final boxHeight = isLongOtp ? 46.0 : 56.0;
@@ -1827,10 +1815,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         decoration: BoxDecoration(
           color: const Color(0xFF101424),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: const Color(0xFFF5B800),
-            width: 1.8,
-          ),
+          border: Border.all(color: const Color(0xFFF5B800), width: 1.8),
           boxShadow: const [
             BoxShadow(
               color: Color(0x33000000),
@@ -2166,29 +2151,24 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   /// Emergency SOS & Safety Section
   Widget _buildSafetySection() {
     return InkWell(
-      onTap: () => Get.to(() => SosScreen(
-            bookingNo: widget.bookingNo ?? _bookingData?.bookingNo ?? '',
-            defaultTriggerType: 'safety_team',
-            autoTriggerDefault: true,
-          )),
+      onTap: () => Get.to(
+        () => SosScreen(
+          bookingNo: widget.bookingNo ?? _bookingData?.bookingNo ?? '',
+          defaultTriggerType: 'safety_team',
+          autoTriggerDefault: true,
+        ),
+      ),
       borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: const Color(0xFFFEF2F2),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: const Color(0xFFFCA5A5),
-            width: 1.2,
-          ),
+          border: Border.all(color: const Color(0xFFFCA5A5), width: 1.2),
         ),
         child: const Row(
           children: [
-            Icon(
-              Icons.shield_rounded,
-              color: Color(0xFFDC2626),
-              size: 22,
-            ),
+            Icon(Icons.shield_rounded, color: Color(0xFFDC2626), size: 22),
             SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -2214,10 +2194,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: Color(0xFFDC2626),
-            ),
+            Icon(Icons.chevron_right_rounded, color: Color(0xFFDC2626)),
           ],
         ),
       ),
