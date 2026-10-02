@@ -7,6 +7,7 @@ class NearbyVehicle {
   final double longitude;
   final double distanceKm;
   final String? iconUrl;
+  final String? imageUrl;
   final DateTime? locationUpdatedAt;
 
   NearbyVehicle({
@@ -18,6 +19,7 @@ class NearbyVehicle {
     required this.longitude,
     required this.distanceKm,
     this.iconUrl,
+    this.imageUrl,
     this.locationUpdatedAt,
   });
 
@@ -31,6 +33,7 @@ class NearbyVehicle {
       longitude: double.tryParse(json['longitude']?.toString() ?? '0.0') ?? 0.0,
       distanceKm: double.tryParse(json['distance_km']?.toString() ?? '0.0') ?? 0.0,
       iconUrl: json['icon_url'],
+      imageUrl: json['image_url'],
       locationUpdatedAt: json['location_updated_at'] != null
           ? DateTime.tryParse(json['location_updated_at'].toString())
           : null,
@@ -47,6 +50,7 @@ class NearbyVehicle {
       'longitude': longitude,
       'distance_km': distanceKm,
       'icon_url': iconUrl,
+      'image_url': imageUrl,
       'location_updated_at': locationUpdatedAt?.toIso8601String(),
     };
   }

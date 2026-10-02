@@ -18,6 +18,7 @@ class VehicleSubCategory {
     this.priceType,
     this.dropLocationRequired = true,
     this.networkIconUrl,
+    this.networkImageUrl,
   });
 
   final int id;
@@ -34,6 +35,7 @@ class VehicleSubCategory {
   final String? priceType;
   final bool dropLocationRequired;
   final String? networkIconUrl;
+  final String? networkImageUrl;
 
   double get ratePerKm {
     if (perKmPrice != null && perKmPrice! > 0) {
@@ -127,6 +129,7 @@ class VehicleOption {
     required this.startingFare,
     required this.subCategories,
     this.networkIconUrl,
+    this.networkImageUrl,
     this.dropLocationRequired = true,
   });
 
@@ -141,5 +144,6 @@ class VehicleOption {
   /// Full URL to the backend-served category icon/image.
   /// When non-null, UI should prefer this over the [icon] IconData.
   final String? networkIconUrl;
+  final String? networkImageUrl;
   final bool dropLocationRequired;
 }

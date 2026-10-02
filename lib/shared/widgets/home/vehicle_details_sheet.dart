@@ -86,7 +86,7 @@ class VehicleDetailsSheet extends StatelessWidget {
                             accentColor: option.accentColor,
                             subCategory: subCategory,
                             icon: option.icon,
-                            networkIconUrl: subCategory.networkIconUrl ?? option.networkIconUrl,
+                            networkIconUrl: subCategory.networkImageUrl ?? subCategory.networkIconUrl ?? option.networkImageUrl ?? option.networkIconUrl,
                             hasDropLocation: hasDropLocation,
                             distanceKm: distanceKm,
                             isSelected: selectedSubCategory?.id == subCategory.id,
@@ -138,10 +138,10 @@ class _SheetHeader extends StatelessWidget {
               color: option.accentColor,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: option.networkIconUrl != null && option.networkIconUrl!.isNotEmpty
+            child: (option.networkImageUrl ?? option.networkIconUrl) != null && (option.networkImageUrl ?? option.networkIconUrl)!.isNotEmpty
                 ? ClipOval(
                     child: Image.network(
-                      option.networkIconUrl!,
+                      (option.networkImageUrl ?? option.networkIconUrl)!,
                       width: compact ? 28 : 32,
                       height: compact ? 28 : 32,
                       fit: BoxFit.cover,

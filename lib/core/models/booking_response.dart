@@ -165,6 +165,18 @@ class BookingDataModel {
     return null;
   }
 
+  String? get effectiveCategoryImageUrl {
+    final img = categoryImage?.trim();
+    if (img != null && img.isNotEmpty) {
+      return img;
+    }
+    final icon = categoryIcon?.trim();
+    if (icon != null && icon.isNotEmpty) {
+      return icon;
+    }
+    return null;
+  }
+
   factory BookingDataModel.fromJson(Map<String, dynamic> json) {
     final requiresDrop = json['requires_drop_location'] is bool
         ? json['requires_drop_location'] as bool

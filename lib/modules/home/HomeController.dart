@@ -1621,7 +1621,8 @@ class HomeController extends GetxController {
       ),
       tagline: vehicle.tagline,
       startingFare: vehicle.startingFare,
-      networkIconUrl: vehicle.iconUrl ?? vehicle.imageUrl,
+      networkIconUrl: vehicle.iconUrl,
+      networkImageUrl: vehicle.imageUrl,
       dropLocationRequired: vehicle.dropLocationRequired,
       subCategories: vehicle.subCategories
           .map(
@@ -1635,7 +1636,8 @@ class HomeController extends GetxController {
               seats: subCategory.seats,
               estimatedFare: subCategory.estimatedFare ?? subCategory.price,
               dropLocationRequired: subCategory.dropLocationRequired,
-              networkIconUrl: subCategory.iconUrl ?? subCategory.imageUrl,
+              networkIconUrl: subCategory.iconUrl,
+              networkImageUrl: subCategory.imageUrl,
             ),
           )
           .toList(),
