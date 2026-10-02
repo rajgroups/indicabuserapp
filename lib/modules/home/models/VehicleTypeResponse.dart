@@ -77,12 +77,24 @@ class ApiVehicleType {
       description: json['description'],
       iconUrl: json['icon_url']?.toString(),
       imageUrl: json['image_url']?.toString(),
-      dropLocationRequired: json['drop_location_required'] ?? true,
+      dropLocationRequired: _parseBool(json['drop_location_required'], defaultValue: true),
       subCategories: (json['sub_categories'] as List<dynamic>?)
               ?.map((e) => ApiSubCategory.fromJson(e))
               .toList() ??
           [],
     );
+  }
+
+  /// Safely parse a backend boolean that may arrive as:
+  ///   bool (true/false), int (1/0), String ("1"/"0"/"true"/"false"), or null.
+  static bool _parseBool(dynamic value, {bool defaultValue = true}) {
+    if (value == null) return defaultValue;
+    if (value is bool) return value;
+    if (value is int) return value != 0;
+    final s = value.toString().toLowerCase().trim();
+    if (s == '1' || s == 'true') return true;
+    if (s == '0' || s == 'false') return false;
+    return defaultValue;
   }
 
   Map<String, dynamic> toJson() {
@@ -116,6 +128,7 @@ class ApiSubCategory {
   final double? perKmPrice;
   final double? perHourPrice;
   final String? priceType;
+  final bool dropLocationRequired;
 
   ApiSubCategory({
     required this.id,
@@ -130,6 +143,7 @@ class ApiSubCategory {
     this.perKmPrice,
     this.perHourPrice,
     this.priceType,
+    this.dropLocationRequired = true,
   });
 
   factory ApiSubCategory.fromJson(Map<String, dynamic> json) {
@@ -214,6 +228,10 @@ class ApiSubCategory {
       perKmPrice: perKmP,
       perHourPrice: perHourP,
       priceType: pType,
+      dropLocationRequired: ApiVehicleType._parseBool(
+        json['drop_location_required'],
+        defaultValue: true,
+      ),
     );
   }
 
@@ -231,6 +249,7 @@ class ApiSubCategory {
       'per_km_price': perKmPrice,
       'per_hour_price': perHourPrice,
       'price_type': priceType,
+      'drop_location_required': dropLocationRequired,
     };
   }
 }

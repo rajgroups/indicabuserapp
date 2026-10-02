@@ -1152,9 +1152,13 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.only(top: 10, left: 16, right: 16),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Back Button
+                  Row(
+                    children: [
+                      // Back Button
                   InkWell(
                     onTap: () {
                       Get.offAllNamed(
@@ -1268,6 +1272,48 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                               ),
                             ),
                           ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x20000000),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 14,
+                            color: Color(0xFF64748B),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Showing direct line to optimize performance & API costs',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
                         ],
                       ),
                     ),

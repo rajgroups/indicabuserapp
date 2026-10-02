@@ -57,14 +57,20 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             content: const Text(
               'Are you sure you want to exit Indicab?',
-              style: TextStyle(color: Color(0xFFB0B3C1), fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: Color(0xFFB0B3C1),
+                fontWeight: FontWeight.w600,
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(false),
                 child: const Text(
                   'Cancel',
-                  style: TextStyle(color: Color(0xFFB0B3C1), fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: Color(0xFFB0B3C1),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               ElevatedButton(
@@ -86,472 +92,524 @@ class _HomeScreenState extends State<HomeScreen> {
           await SystemNavigator.pop();
         }
       },
-      child: AppScreen(
-      backgroundColor: AppColors.authBackground,
-      safeAreaBottom: false,
-      child: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                const HomeMapArea(),
-                DraggableScrollableSheet(
-                  initialChildSize: 0.5,
-                  minChildSize: 0.5,
-                  maxChildSize: 0.9,
-                  builder: (context, scrollController) {
-                    return Container(
-                      width: double.infinity,
-                      decoration: const BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(32),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0x14000000),
-                            blurRadius: 28,
-                            offset: Offset(0, -6),
+      child: OnboardingOverlay(
+        child: AppScreen(
+          backgroundColor: AppColors.authBackground,
+          safeAreaBottom: false,
+          child: Column(
+            children: [
+              Expanded(
+                child: Stack(
+                  children: [
+                    const HomeMapArea(),
+                    DraggableScrollableSheet(
+                      initialChildSize: 0.5,
+                      minChildSize: 0.5,
+                      maxChildSize: 0.9,
+                      builder: (context, scrollController) {
+                        return Container(
+                          width: double.infinity,
+                          decoration: const BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(32),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Color(0x14000000),
+                                blurRadius: 28,
+                                offset: Offset(0, -6),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: SingleChildScrollView(
-                        controller: scrollController,
-                        physics: const BouncingScrollPhysics(),
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            compact ? 16 : 20,
-                            12,
-                            compact ? 16 : 20,
-                            32,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Center(
-                                child: Container(
-                                  width: 52,
-                                  height: 5,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.border,
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                ),
+                          child: SingleChildScrollView(
+                            controller: scrollController,
+                            physics: const BouncingScrollPhysics(),
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                compact ? 16 : 20,
+                                12,
+                                compact ? 16 : 20,
+                                32,
                               ),
-                              const SizedBox(height: 16),
-                              Obx(() {
-                                final activeRide = controller.activeRide.value;
-                                final status = activeRide?.status?.trim().toLowerCase();
-
-                                if (activeRide == null ||
-                                    status == 'completed' ||
-                                    status == 'cancelled') {
-                                  return const SizedBox.shrink();
-                                }
-
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: _ActiveRideFloatingCard(
-                                    booking: activeRide,
-                                    onTap: () {
-                                      final status =
-                                          activeRide.status?.trim().toLowerCase();
-                                      final bookingArgs = <String, dynamic>{
-                                        'booking_no': activeRide.bookingNo,
-                                        'booking_data': activeRide,
-                                      };
-                                      if (status == 'pending') {
-                                        Get.toNamed(
-                                          RouteNames.findingDriver,
-                                          arguments: <String, dynamic>{
-                                            'booking_no': activeRide.bookingNo,
-                                            'booking_data': activeRide,
-                                            'vehicle_type':
-                                                activeRide.categoryName,
-                                          },
-                                        );
-                                      } else if (status == 'accepted' ||
-                                          status == 'arrived' ||
-                                          status == 'started') {
-                                        Get.toNamed(
-                                          RouteNames.activeRide,
-                                          arguments: bookingArgs,
-                                        );
-                                      } else if (status == 'completed') {
-                                        Get.toNamed(
-                                          RouteNames.rideSummary,
-                                          arguments: bookingArgs,
-                                        );
-                                      }
-                                    },
-                                  ),
-                                );
-                              }),
-                              HomeSearchBar(
-                                onTap: () => Get.toNamed(
-                                  RouteNames.locationSearch,
-                                  arguments: <String, dynamic>{
-                                    'target': controller.nextSelectionTarget ==
-                                            LocationSelectionTarget.drop
-                                        ? 'drop'
-                                        : 'pickup',
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              const HomeSectionTitle(
-                                title: 'Choose Your Ride',
-                                subtitle:
-                                    'Pick the vehicle that matches this trip',
-                              ),
-                              const SizedBox(height: 16),
-                              Obx(() {
-                                if (controller.isLoading.value) {
-                                  return SizedBox(
-                                    height: vehicleHeight,
-                                    child: const Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  );
-                                }
-
-                                if (controller.vehicleTypes.isEmpty) {
-                                  return SizedBox(
-                                    height: vehicleHeight,
-                                    child: Center(
-                                      child: Text(
-                                        'No vehicles available right now',
-                                        style: TextStyle(
-                                          color: AppColors.textSecondary,
-                                          fontSize: compact ? 13 : 14,
-                                          fontWeight: FontWeight.w600,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Center(
+                                    child: Container(
+                                      width: 52,
+                                      height: 5,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.border,
+                                        borderRadius: BorderRadius.circular(
+                                          999,
                                         ),
                                       ),
                                     ),
-                                  );
-                                }
-
-                                return SizedBox(
-                                  height: vehicleHeight,
-                                  child: ListView.separated(
-                                    controller: _vehicleListScrollController,
-                                    scrollDirection: Axis.horizontal,
-                                    physics: const BouncingScrollPhysics(),
-                                    itemCount: controller.vehicleTypes.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(width: 14),
-                                    itemBuilder: (context, index) {
-                                      final option =
-                                          controller.vehicleTypes[index];
-                                      final isSelected =
-                                          controller
-                                              .selectedVehicle
-                                              .value
-                                              ?.id ==
-                                          option.id;
-
-                                      return VehicleCard(
-                                        option: option,
-                                        isSelected: isSelected,
-                                        onTap: () {
-                                          controller.selectVehicle(
-                                            option,
-                                          );
-                                          _openVehicleSheet(context, option);
-                                        },
-                                        onMapTap: () {
-                                          Get.to(
-                                            () => NearbyVehiclesScreen(
-                                              categoryId: option.id,
-                                              vehicleCategory: option.label,
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
                                   ),
-                                );
-                              }),
-                              Obx(() {
-                                final selectedVehicle =
-                                    controller.selectedVehicle.value;
-                                final selectedSub =
-                                    controller.selectedSubCategory.value;
+                                  const SizedBox(height: 16),
+                                  Obx(() {
+                                    final activeRide =
+                                        controller.activeRide.value;
+                                    final status = activeRide?.status
+                                        ?.trim()
+                                        .toLowerCase();
 
-                                if (selectedVehicle == null) {
-                                  return const SizedBox.shrink();
-                                }
+                                    if (activeRide == null ||
+                                        status == 'completed' ||
+                                        status == 'cancelled') {
+                                      return const SizedBox.shrink();
+                                    }
 
-                                return Column(
-                                  children: [
-                                    const SizedBox(height: 18),
-                                    SelectedVehicleHint(
-                                      option: selectedVehicle,
-                                      subCategory: selectedSub,
-                                      onTap: () => _openVehicleSheet(
-                                        context,
-                                        selectedVehicle,
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 16,
                                       ),
-                                    ),
-                                  ],
-                                );
-                              }),
-                              const SizedBox(height: 28),
-                              const HomeSectionTitle(
-                                title: 'Trip Essentials',
-                                subtitle:
-                                    'Shortcuts people use most while booking',
-                              ),
-                              const SizedBox(height: 16),
-                              GridView.count(
-                                crossAxisCount: 4,
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 0.85,
-                                children: [
-                                  _EssentialGridItem(
-                                    icon: Icons.history_rounded,
-                                    label: 'Recent',
-                                    color: const Color(0xFF6C63FF),
-                                    onTap: () =>
-                                        Get.toNamed(RouteNames.rideHistory),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.local_offer_rounded,
-                                    label: 'Offers',
-                                    color: const Color(0xFF00C853),
-                                    onTap: () => Helpers.showComingSoon('Offers'),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.schedule_rounded,
-                                    label: 'Schedule',
-                                    color: const Color(0xFF00B4D8),
-                                    onTap: () => Helpers.showComingSoon('Schedule Ride'),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.support_agent_rounded,
-                                    label: 'Support',
-                                    color: const Color(0xFF2ECC71),
-                                    onTap: () => Helpers.showComingSoon('Customer Support'),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.card_giftcard_rounded,
-                                    label: 'Rewards',
-                                    color: const Color(0xFF1A1A2E),
-                                    onTap: () => Helpers.showComingSoon('Rewards & Loyalty'),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.location_on_rounded,
-                                    label: 'Saved',
-                                    color: const Color(0xFFE91E63),
-                                    onTap: () => Helpers.showComingSoon('Saved Places'),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.receipt_long_rounded,
-                                    label: 'Invoices',
-                                    color: const Color(0xFF607D8B),
-                                    onTap: () =>
-                                        Get.toNamed(RouteNames.rideHistory),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.share_rounded,
-                                    label: 'Refer',
-                                    color: const Color(0xFF9C27B0),
-                                    onTap: () => Helpers.showComingSoon('Refer & Earn'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-                              const HomePromoBanner(),
-                              const SizedBox(height: 28),
-                              const HomeSectionTitle(
-                                title: 'Saved Places',
-                                subtitle:
-                                    'Quickly book your most common routes',
-                              ),
-                              const SizedBox(height: 16),
-                              GridView.count(
-                                crossAxisCount: 4,
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 0.85,
-                                children: [
-                                  _EssentialGridItem(
-                                    icon: Icons.home_rounded,
-                                    label: 'Home',
-                                    color: const Color(0xFF2196F3),
-                                    onTap: () => Helpers.showComingSoon('Saved Home Location'),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.work_rounded,
-                                    label: 'Work',
-                                    color: const Color(0xFF607D8B),
-                                    onTap: () => Helpers.showComingSoon('Saved Work Location'),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.flight_rounded,
-                                    label: 'Airport',
-                                    color: const Color(0xFF00BCD4),
-                                    onTap: () => Helpers.showComingSoon('Airport Rides'),
-                                  ),
-                                  _EssentialGridItem(
-                                    icon: Icons.add_location_alt_rounded,
-                                    label: 'Add New',
-                                    color: const Color(0xFF4CAF50),
+                                      child: _ActiveRideFloatingCard(
+                                        booking: activeRide,
+                                        onTap: () {
+                                          final status = activeRide.status
+                                              ?.trim()
+                                              .toLowerCase();
+                                          final bookingArgs = <String, dynamic>{
+                                            'booking_no': activeRide.bookingNo,
+                                            'booking_data': activeRide,
+                                          };
+                                          if (status == 'pending') {
+                                            Get.toNamed(
+                                              RouteNames.findingDriver,
+                                              arguments: <String, dynamic>{
+                                                'booking_no':
+                                                    activeRide.bookingNo,
+                                                'booking_data': activeRide,
+                                                'vehicle_type':
+                                                    activeRide.categoryName,
+                                              },
+                                            );
+                                          } else if (status == 'accepted' ||
+                                              status == 'arrived' ||
+                                              status == 'started') {
+                                            Get.toNamed(
+                                              RouteNames.activeRide,
+                                              arguments: bookingArgs,
+                                            );
+                                          } else if (status == 'completed') {
+                                            Get.toNamed(
+                                              RouteNames.rideSummary,
+                                              arguments: bookingArgs,
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    );
+                                  }),
+                                  HomeSearchBar(
                                     onTap: () => Get.toNamed(
                                       RouteNames.locationSearch,
                                       arguments: <String, dynamic>{
-                                        'target': controller.nextSelectionTarget ==
+                                        'target':
+                                            controller.nextSelectionTarget ==
                                                 LocationSelectionTarget.drop
                                             ? 'drop'
                                             : 'pickup',
                                       },
                                     ),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 28),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: () => Get.toNamed(
-                                    RouteNames.locationSearch,
-                                    arguments: <String, dynamic>{
-                                      'target': controller.nextSelectionTarget ==
-                                              LocationSelectionTarget.drop
-                                          ? 'drop'
-                                          : 'pickup',
-                                    },
+                                  const SizedBox(height: 6),
+                                  const HomeSectionTitle(
+                                    title: 'Choose Your Ride',
+                                    subtitle:
+                                        'Pick the vehicle that matches this trip',
                                   ),
-                                  child: const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 2),
-                                    child: Text(
-                                      'Continue Booking',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15,
+                                  const SizedBox(height: 16),
+                                  Obx(() {
+                                    if (controller.isLoading.value) {
+                                      return SizedBox(
+                                        height: vehicleHeight,
+                                        child: const Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      );
+                                    }
+
+                                    if (controller.vehicleTypes.isEmpty) {
+                                      return SizedBox(
+                                        height: vehicleHeight,
+                                        child: Center(
+                                          child: Text(
+                                            'No vehicles available right now',
+                                            style: TextStyle(
+                                              color: AppColors.textSecondary,
+                                              fontSize: compact ? 13 : 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+
+                                    return SizedBox(
+                                      height: vehicleHeight,
+                                      child: ListView.separated(
+                                        controller:
+                                            _vehicleListScrollController,
+                                        scrollDirection: Axis.horizontal,
+                                        physics: const BouncingScrollPhysics(),
+                                        itemCount:
+                                            controller.vehicleTypes.length,
+                                        separatorBuilder: (_, __) =>
+                                            const SizedBox(width: 14),
+                                        itemBuilder: (context, index) {
+                                          final option =
+                                              controller.vehicleTypes[index];
+                                          final isSelected =
+                                              controller
+                                                  .selectedVehicle
+                                                  .value
+                                                  ?.id ==
+                                              option.id;
+
+                                          return VehicleCard(
+                                            option: option,
+                                            isSelected: isSelected,
+                                            onTap: () {
+                                              controller.selectVehicle(option);
+                                              _openVehicleSheet(
+                                                context,
+                                                option,
+                                              );
+                                            },
+                                            onMapTap: () {
+                                              Get.to(
+                                                () => NearbyVehiclesScreen(
+                                                  categoryId: option.id,
+                                                  vehicleCategory: option.label,
+                                                ),
+                                              );
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  }),
+                                  Obx(() {
+                                    final selectedVehicle =
+                                        controller.selectedVehicle.value;
+                                    final selectedSub =
+                                        controller.selectedSubCategory.value;
+
+                                    if (selectedVehicle == null) {
+                                      return const SizedBox.shrink();
+                                    }
+
+                                    return Column(
+                                      children: [
+                                        const SizedBox(height: 18),
+                                        SelectedVehicleHint(
+                                          option: selectedVehicle,
+                                          subCategory: selectedSub,
+                                          onTap: () => _openVehicleSheet(
+                                            context,
+                                            selectedVehicle,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }),
+                                  const SizedBox(height: 28),
+                                  const HomeSectionTitle(
+                                    title: 'Trip Essentials',
+                                    subtitle:
+                                        'Shortcuts people use most while booking',
+                                  ),
+                                  const SizedBox(height: 16),
+                                  GridView.count(
+                                    crossAxisCount: 4,
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 16,
+                                    childAspectRatio: 0.85,
+                                    children: [
+                                      _EssentialGridItem(
+                                        icon: Icons.history_rounded,
+                                        label: 'Recent',
+                                        color: const Color(0xFF6C63FF),
+                                        onTap: () =>
+                                            Get.toNamed(RouteNames.rideHistory),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.local_offer_rounded,
+                                        label: 'Offers',
+                                        color: const Color(0xFF00C853),
+                                        onTap: () =>
+                                            Helpers.showComingSoon('Offers'),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.schedule_rounded,
+                                        label: 'Schedule',
+                                        color: const Color(0xFF00B4D8),
+                                        onTap: () => Helpers.showComingSoon(
+                                          'Schedule Ride',
+                                        ),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.support_agent_rounded,
+                                        label: 'Support',
+                                        color: const Color(0xFF2ECC71),
+                                        onTap: () => Helpers.showComingSoon(
+                                          'Customer Support',
+                                        ),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.card_giftcard_rounded,
+                                        label: 'Rewards',
+                                        color: const Color(0xFF1A1A2E),
+                                        onTap: () => Helpers.showComingSoon(
+                                          'Rewards & Loyalty',
+                                        ),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.location_on_rounded,
+                                        label: 'Saved',
+                                        color: const Color(0xFFE91E63),
+                                        onTap: () => Helpers.showComingSoon(
+                                          'Saved Places',
+                                        ),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.receipt_long_rounded,
+                                        label: 'Invoices',
+                                        color: const Color(0xFF607D8B),
+                                        onTap: () =>
+                                            Get.toNamed(RouteNames.rideHistory),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.share_rounded,
+                                        label: 'Refer',
+                                        color: const Color(0xFF9C27B0),
+                                        onTap: () => Helpers.showComingSoon(
+                                          'Refer & Earn',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const HomePromoBanner(),
+                                  const SizedBox(height: 28),
+                                  const HomeSectionTitle(
+                                    title: 'Saved Places',
+                                    subtitle:
+                                        'Quickly book your most common routes',
+                                  ),
+                                  const SizedBox(height: 16),
+                                  GridView.count(
+                                    crossAxisCount: 4,
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 16,
+                                    childAspectRatio: 0.85,
+                                    children: [
+                                      _EssentialGridItem(
+                                        icon: Icons.home_rounded,
+                                        label: 'Home',
+                                        color: const Color(0xFF2196F3),
+                                        onTap: () => Helpers.showComingSoon(
+                                          'Saved Home Location',
+                                        ),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.work_rounded,
+                                        label: 'Work',
+                                        color: const Color(0xFF607D8B),
+                                        onTap: () => Helpers.showComingSoon(
+                                          'Saved Work Location',
+                                        ),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.flight_rounded,
+                                        label: 'Airport',
+                                        color: const Color(0xFF00BCD4),
+                                        onTap: () => Helpers.showComingSoon(
+                                          'Airport Rides',
+                                        ),
+                                      ),
+                                      _EssentialGridItem(
+                                        icon: Icons.add_location_alt_rounded,
+                                        label: 'Add New',
+                                        color: const Color(0xFF4CAF50),
+                                        onTap: () => Get.toNamed(
+                                          RouteNames.locationSearch,
+                                          arguments: <String, dynamic>{
+                                            'target':
+                                                controller
+                                                        .nextSelectionTarget ==
+                                                    LocationSelectionTarget.drop
+                                                ? 'drop'
+                                                : 'pickup',
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 28),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () => Get.toNamed(
+                                        RouteNames.locationSearch,
+                                        arguments: <String, dynamic>{
+                                          'target':
+                                              controller.nextSelectionTarget ==
+                                                  LocationSelectionTarget.drop
+                                              ? 'drop'
+                                              : 'pickup',
+                                        },
+                                      ),
+                                      child: const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 2,
+                                        ),
+                                        child: Text(
+                                          'Continue Booking',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF1A1A2E,
+                                        ),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1A1A2E),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 24,
-                  child: Obx(() {
-                    final selectedVehicle = controller.selectedVehicle.value;
-                    final selectedSub = controller.selectedSubCategory.value;
-
-                    if (selectedVehicle == null || selectedSub == null) {
-                      return const SizedBox.shrink();
-                    }
-
-                    return Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            final ctx = Get.context;
-                            if (ctx == null) return;
-                            final bookingController =
-                                Get.isRegistered<BookingController>()
-                                ? Get.find<BookingController>()
-                                : Get.put<BookingController>(BookingController());
-                            bookingController.showBookingModeDialog(
-                              ctx,
-                              selectedVehicle,
-                              selectedSub,
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(99),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 28,
-                              vertical: 14,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  selectedVehicle.accentColor,
-                                  Color.lerp(selectedVehicle.accentColor, Colors.black, 0.15)!,
                                 ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
                               ),
-                              borderRadius: BorderRadius.circular(99),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: selectedVehicle.accentColor.withValues(alpha: 0.4),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.bolt_rounded,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Book ${selectedSub.name} Now',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ],
                             ),
                           ),
-                        ),
-                      ),
-                    );
-                  }),
+                        );
+                      },
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 24,
+                      child: Obx(() {
+                        final selectedVehicle =
+                            controller.selectedVehicle.value;
+                        final selectedSub =
+                            controller.selectedSubCategory.value;
+
+                        if (selectedVehicle == null || selectedSub == null) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                final ctx = Get.context;
+                                if (ctx == null) return;
+                                final bookingController =
+                                    Get.isRegistered<BookingController>()
+                                    ? Get.find<BookingController>()
+                                    : Get.put<BookingController>(
+                                        BookingController(),
+                                      );
+                                bookingController.showBookingModeDialog(
+                                  ctx,
+                                  selectedVehicle,
+                                  selectedSub,
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(99),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 28,
+                                  vertical: 14,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      selectedVehicle.accentColor,
+                                      Color.lerp(
+                                        selectedVehicle.accentColor,
+                                        Colors.black,
+                                        0.15,
+                                      )!,
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(99),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: selectedVehicle.accentColor
+                                          .withValues(alpha: 0.4),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.bolt_rounded,
+                                      color: Colors.white,
+                                      size: 22,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Book ${selectedSub.name} Now',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                    const Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: HomeTopBar(),
+                    ),
+                  ],
                 ),
-                const Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: HomeTopBar(),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Future<void> _openVehicleSheet(
     BuildContext context,
@@ -722,7 +780,11 @@ class _ActiveRideFloatingCard extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: Icon(_icon, color: const Color(0xFF00C853), size: 24),
+                    child: Icon(
+                      _icon,
+                      color: const Color(0xFF00C853),
+                      size: 24,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 14),

@@ -100,7 +100,8 @@ class HomeMapArea extends GetView<HomeController> {
                 onTap: () => Get.toNamed(
                   RouteNames.locationSearch,
                   arguments: <String, dynamic>{
-                    'target': controller.nextSelectionTarget ==
+                    'target':
+                        controller.nextSelectionTarget ==
                             LocationSelectionTarget.drop
                         ? 'drop'
                         : 'pickup',
@@ -129,7 +130,9 @@ class HomeMapArea extends GetView<HomeController> {
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE53935).withValues(alpha: 0.18),
+                          color: const Color(
+                            0xFFE53935,
+                          ).withValues(alpha: 0.18),
                           shape: BoxShape.circle,
                         ),
                         child: const Center(
@@ -146,9 +149,15 @@ class HomeMapArea extends GetView<HomeController> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
-                              'DROP LOCATION',
-                              style: TextStyle(
+                            Text(
+                              controller.selectedVehicle.value != null &&
+                                      !controller
+                                          .selectedVehicle
+                                          .value!
+                                          .dropLocationRequired
+                                  ? 'DROP LOCATION (OPTIONAL)'
+                                  : 'DROP LOCATION',
+                              style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFFE53935),
@@ -159,7 +168,13 @@ class HomeMapArea extends GetView<HomeController> {
                             Text(
                               controller.dropAddress.value.isNotEmpty
                                   ? controller.dropAddress.value
-                                  : 'Tap to select destination',
+                                  : (controller.selectedVehicle.value != null &&
+                                            !controller
+                                                .selectedVehicle
+                                                .value!
+                                                .dropLocationRequired
+                                        ? 'Tap to select destination (Optional)'
+                                        : 'Tap to select destination'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -178,7 +193,9 @@ class HomeMapArea extends GetView<HomeController> {
                           onTap: controller.launchExternalNavigation,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF00C853),
                               borderRadius: BorderRadius.circular(12),
@@ -282,7 +299,9 @@ class _MapSetupFallback extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                isWeb ? 'Google Maps web setup needed' : 'Add your Google Maps key',
+                isWeb
+                    ? 'Google Maps web setup needed'
+                    : 'Add your Google Maps key',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 16,
@@ -322,9 +341,7 @@ class HomeTopBar extends GetView<HomeController> {
       padding: EdgeInsets.fromLTRB(16, topPad + 10, 16, 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: const BorderRadius.vertical(
-          bottom: Radius.circular(20),
-        ),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -349,7 +366,8 @@ class HomeTopBar extends GetView<HomeController> {
                 onTap: () => Get.toNamed(
                   RouteNames.locationSearch,
                   arguments: <String, dynamic>{
-                    'target': controller.nextSelectionTarget ==
+                    'target':
+                        controller.nextSelectionTarget ==
                             LocationSelectionTarget.drop
                         ? 'drop'
                         : 'pickup',
@@ -379,8 +397,9 @@ class HomeTopBar extends GetView<HomeController> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF00C853)
-                                  .withValues(alpha: 0.5),
+                              color: const Color(
+                                0xFF00C853,
+                              ).withValues(alpha: 0.5),
                               blurRadius: 4,
                               offset: const Offset(0, 1),
                             ),

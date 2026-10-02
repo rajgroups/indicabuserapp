@@ -16,6 +16,7 @@ class VehicleSubCategory {
     this.perKmPrice,
     this.perHourPrice,
     this.priceType,
+    this.dropLocationRequired = true,
   });
 
   final int id;
@@ -30,6 +31,7 @@ class VehicleSubCategory {
   final double? perKmPrice;
   final double? perHourPrice;
   final String? priceType;
+  final bool dropLocationRequired;
 
   double get ratePerKm {
     if (perKmPrice != null && perKmPrice! > 0) {

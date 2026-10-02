@@ -35,6 +35,10 @@ class HomeSearchBar extends StatelessWidget {
             final drop = controller.dropAddress.value;
             final hasPickup = pickup.isNotEmpty;
             final hasDrop = drop.isNotEmpty;
+            final selectedVehicle = controller.selectedVehicle.value;
+            final isDropOptional =
+                selectedVehicle != null &&
+                !selectedVehicle.dropLocationRequired;
 
             return IntrinsicHeight(
               child: Row(
@@ -56,8 +60,9 @@ class HomeSearchBar extends StatelessWidget {
                             border: Border.all(color: Colors.white, width: 2),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF00C853)
-                                    .withValues(alpha: 0.4),
+                                color: const Color(
+                                  0xFF00C853,
+                                ).withValues(alpha: 0.4),
                                 blurRadius: 4,
                                 offset: const Offset(0, 1),
                               ),
@@ -66,9 +71,7 @@ class HomeSearchBar extends StatelessWidget {
                         ),
                         // Dashed line
                         Expanded(
-                          child: CustomPaint(
-                            painter: _DashedLinePainter(),
-                          ),
+                          child: CustomPaint(painter: _DashedLinePainter()),
                         ),
                         // Destination teardrop
                         const Icon(
@@ -108,7 +111,11 @@ class HomeSearchBar extends StatelessWidget {
                         ),
                         // Destination line
                         Text(
-                          hasDrop ? drop : 'Where to?',
+                          hasDrop
+                              ? drop
+                              : (isDropOptional
+                                    ? 'Where to? (Optional)'
+                                    : 'Where to?'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

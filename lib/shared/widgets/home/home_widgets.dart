@@ -8,3 +8,4 @@ export 'section_title.dart';
 export 'selected_vehicle_hint.dart';
 export 'vehicle_card.dart';
 export 'vehicle_details_sheet.dart';
+export 'onboarding_overlay.dart';

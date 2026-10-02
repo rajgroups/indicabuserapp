@@ -46,6 +46,27 @@ class BookingController extends GetxController {
       return;
     }
 
+    // ── Drop Location Validation ──────────────────────────────────────────────
+    // The dropLocationRequired value comes from the backend.
+    // This check is the final client-side guard before the booking is submitted.
+    // The backend will also validate this.
+    final dropRequired = subCategory.dropLocationRequired;
+    final hasDropLocation = _homeController.droplocation.value != null;
+
+    if (dropRequired && !hasDropLocation) {
+      Get.snackbar(
+        'Drop Location Required',
+        'Please select a drop location for this service.',
+        backgroundColor: const Color(0xFFE53935),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
+        duration: const Duration(seconds: 4),
+        icon: const Icon(Icons.location_off_rounded, color: Colors.white),
+      );
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     await Get.dialog(
       Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 20),
@@ -187,7 +208,9 @@ class BookingController extends GetxController {
         Dialog(
           insetPadding: const EdgeInsets.symmetric(horizontal: 20),
           backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -228,7 +251,10 @@ class BookingController extends GetxController {
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(12),
@@ -236,12 +262,19 @@ class BookingController extends GetxController {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: const [
-                      Icon(Icons.notifications_active_outlined, size: 18, color: Color(0xFF64748B)),
+                      Icon(
+                        Icons.notifications_active_outlined,
+                        size: 18,
+                        color: Color(0xFF64748B),
+                      ),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'We will send a notification when driver matching begins at your scheduled time.',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF475569),
+                          ),
                         ),
                       ),
                     ],
@@ -262,7 +295,10 @@ class BookingController extends GetxController {
                     ),
                     child: const Text(
                       'Done',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ),
@@ -337,8 +373,7 @@ class BookingController extends GetxController {
     final dropLocation = _homeController.droplocation.value;
 
     final locations = <BookingLocationRequest>[];
-    String pickupAddr =
-        _homeController.pickupAddress.value.trim().isNotEmpty
+    String pickupAddr = _homeController.pickupAddress.value.trim().isNotEmpty
         ? _homeController.pickupAddress.value
         : (_homeController.currentAddress.value.trim().isNotEmpty &&
                   !_homeController.currentAddress.value.startsWith(
@@ -347,7 +382,8 @@ class BookingController extends GetxController {
               ? _homeController.currentAddress.value
               : 'Current Location');
 
-    if (pickupAddr.startsWith('Location (') || pickupAddr.startsWith('Enable GOOGLE_')) {
+    if (pickupAddr.startsWith('Location (') ||
+        pickupAddr.startsWith('Enable GOOGLE_')) {
       pickupAddr = 'Current Location';
     }
 

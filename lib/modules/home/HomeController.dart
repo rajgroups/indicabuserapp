@@ -71,7 +71,9 @@ class HomeController extends GetxController {
   final Rxn<VehicleSubCategory> selectedSubCategory = Rxn<VehicleSubCategory>();
 
   final VehicleRespository _vehicleRepo = VehicleRespository(ApiClient());
-  final VehicleMarkerService _homeMarkerService = Get.put(VehicleMarkerService());
+  final VehicleMarkerService _homeMarkerService = Get.put(
+    VehicleMarkerService(),
+  );
   final RxList<NearbyVehicle> homeNearbyVehicles = <NearbyVehicle>[].obs;
 
   Timer? _fetchVehiclesDebounce;
@@ -124,7 +126,9 @@ class HomeController extends GetxController {
   void addRecentSearch(String address) {
     final trimmed = address.trim();
     if (trimmed.isEmpty || trimmed.startsWith('Location (')) return;
-    recentSearches.removeWhere((item) => item.toLowerCase() == trimmed.toLowerCase());
+    recentSearches.removeWhere(
+      (item) => item.toLowerCase() == trimmed.toLowerCase(),
+    );
     recentSearches.insert(0, trimmed);
     if (recentSearches.length > 8) {
       recentSearches.removeLast();
@@ -194,7 +198,9 @@ class HomeController extends GetxController {
     }
   }
 
-  Future<T> _runSilentlyWithCameraCallbacks<T>(Future<T> Function() action) async {
+  Future<T> _runSilentlyWithCameraCallbacks<T>(
+    Future<T> Function() action,
+  ) async {
     _suppressedCameraCallbackDepth++;
     try {
       return await action();
@@ -224,9 +230,13 @@ class HomeController extends GetxController {
     const double size = 48.0; // logical px
     final double dpr =
         WidgetsBinding.instance.platformDispatcher.views.isNotEmpty
-            ? WidgetsBinding.instance.platformDispatcher.views.first
-                .devicePixelRatio
-            : 3.0;
+        ? WidgetsBinding
+              .instance
+              .platformDispatcher
+              .views
+              .first
+              .devicePixelRatio
+        : 3.0;
     final int px = (size * dpr).round();
 
     final recorder = ui.PictureRecorder();
@@ -248,11 +258,7 @@ class HomeController extends GetxController {
     );
 
     // Outer colored ring
-    canvas.drawCircle(
-      const Offset(cx, cy),
-      outerR,
-      Paint()..color = ringColor,
-    );
+    canvas.drawCircle(const Offset(cx, cy), outerR, Paint()..color = ringColor);
 
     // White inner disc
     canvas.drawCircle(
@@ -274,10 +280,7 @@ class HomeController extends GetxController {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(
-      canvas,
-      Offset(cx - tp.width / 2, cy - tp.height / 2),
-    );
+    tp.paint(canvas, Offset(cx - tp.width / 2, cy - tp.height / 2));
 
     final img = await recorder.endRecording().toImage(px, px);
     final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
@@ -386,15 +389,15 @@ class HomeController extends GetxController {
       return;
     }
 
-    final validStops =
-        dropStops.where((s) => s.location.value != null).toList();
+    final validStops = dropStops
+        .where((s) => s.location.value != null)
+        .toList();
     if (validStops.isNotEmpty) {
       final lastStop = validStops.last;
       droplocation.value = lastStop.location.value;
       dropAddress.value = lastStop.address.value;
       dropPlaceName.value = lastStop.placeName.value;
-      dropCoordinates.value =
-          _formatCoordinates(lastStop.location.value!);
+      dropCoordinates.value = _formatCoordinates(lastStop.location.value!);
       destController.text = lastStop.address.value;
     } else {
       droplocation.value = null;
@@ -498,9 +501,7 @@ class HomeController extends GetxController {
     }
 
     final vehicleType = _storage.read(StorageKeys.pendingRideVehicleType);
-    final arguments = <String, dynamic>{
-      'booking_no': bookingNo.trim(),
-    };
+    final arguments = <String, dynamic>{'booking_no': bookingNo.trim()};
 
     if (vehicleType is String && vehicleType.trim().isNotEmpty) {
       arguments['vehicle_type'] = vehicleType.trim();
@@ -607,15 +608,19 @@ class HomeController extends GetxController {
   }
 
   LatLng _effectivePickupPoint() {
-    final previewActive = isMapViewMode.value &&
+    final previewActive =
+        isMapViewMode.value &&
         isMapDragging.value &&
         _dragPreviewTarget == LocationSelectionTarget.pickup &&
         _dragPreviewPoint != null;
-    return previewActive ? _dragPreviewPoint! : (pickuplocation.value ?? pickupPoint.value);
+    return previewActive
+        ? _dragPreviewPoint!
+        : (pickuplocation.value ?? pickupPoint.value);
   }
 
   LatLng? _effectiveDropPointForMarker() {
-    final previewActive = isMapViewMode.value &&
+    final previewActive =
+        isMapViewMode.value &&
         isMapDragging.value &&
         _dragPreviewTarget == LocationSelectionTarget.drop &&
         _dragPreviewPoint != null;
@@ -623,7 +628,8 @@ class HomeController extends GetxController {
   }
 
   List<LatLng> _effectiveDropLocations() {
-    final previewActive = isMapViewMode.value &&
+    final previewActive =
+        isMapViewMode.value &&
         isMapDragging.value &&
         _dragPreviewTarget == LocationSelectionTarget.drop &&
         _dragPreviewPoint != null;
@@ -638,7 +644,9 @@ class HomeController extends GetxController {
     final points = <LatLng>[];
     for (int i = 0; i < dropStops.length; i++) {
       final stop = dropStops[i];
-      final pos = i == activeDropStopIndex.value ? _dragPreviewPoint : stop.location.value;
+      final pos = i == activeDropStopIndex.value
+          ? _dragPreviewPoint
+          : stop.location.value;
       if (pos != null) {
         points.add(pos);
       }
@@ -756,7 +764,8 @@ class HomeController extends GetxController {
           title: 'Pickup Location',
           snippet: pickupAddress.value,
         ),
-        icon: _pickupMarkerIcon ??
+        icon:
+            _pickupMarkerIcon ??
             BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
       ),
     );
@@ -771,14 +780,16 @@ class HomeController extends GetxController {
             title: 'Destination',
             snippet: dropAddress.value,
           ),
-          icon: _dropMarkerIcon ??
+          icon:
+              _dropMarkerIcon ??
               BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );
     } else {
       for (int i = 0; i < dropStops.length; i++) {
         final stop = dropStops[i];
-        final pos = (isMapViewMode.value &&
+        final pos =
+            (isMapViewMode.value &&
                 isMapDragging.value &&
                 _dragPreviewTarget == LocationSelectionTarget.drop &&
                 i == activeDropStopIndex.value &&
@@ -793,12 +804,12 @@ class HomeController extends GetxController {
               markerId: MarkerId('drop_$i'),
               position: pos,
               anchor: const Offset(0.5, 1.0),
-              infoWindow: InfoWindow(
-                title: title,
-                snippet: stop.address.value,
-              ),
-              icon: _dropMarkerIcon ??
-                  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+              infoWindow: InfoWindow(title: title, snippet: stop.address.value),
+              icon:
+                  _dropMarkerIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRed,
+                  ),
             ),
           );
         }
@@ -891,7 +902,8 @@ class HomeController extends GetxController {
     position: pickupPoint.value,
     anchor: const Offset(0.5, 1.0),
     infoWindow: InfoWindow(title: currentAddress.value),
-    icon: _pickupMarkerIcon ??
+    icon:
+        _pickupMarkerIcon ??
         BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
   );
 
@@ -935,7 +947,9 @@ class HomeController extends GetxController {
     try {
       final LocationService locationService = LocationService();
       final context = Get.context;
-      final position = await locationService.getCurrentLocation(context: context);
+      final position = await locationService.getCurrentLocation(
+        context: context,
+      );
 
       if (position != null) {
         final latlng = LatLng(position.latitude, position.longitude);
@@ -944,14 +958,24 @@ class HomeController extends GetxController {
             pickuplocation.value != null &&
             pickupAddress.value.isNotEmpty) {
           const double earthRadiusMeters = 6371000;
-          final dLat = (latlng.latitude - pickuplocation.value!.latitude) * math.pi / 180;
-          final dLng = (latlng.longitude - pickuplocation.value!.longitude) * math.pi / 180;
-          final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+          final dLat =
+              (latlng.latitude - pickuplocation.value!.latitude) *
+              math.pi /
+              180;
+          final dLng =
+              (latlng.longitude - pickuplocation.value!.longitude) *
+              math.pi /
+              180;
+          final a =
+              math.sin(dLat / 2) * math.sin(dLat / 2) +
               math.cos(pickuplocation.value!.latitude * math.pi / 180) *
                   math.cos(latlng.latitude * math.pi / 180) *
                   math.sin(dLng / 2) *
                   math.sin(dLng / 2);
-          final distMeters = earthRadiusMeters * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+          final distMeters =
+              earthRadiusMeters *
+              2 *
+              math.atan2(math.sqrt(a), math.sqrt(1 - a));
 
           if (distMeters < 50) {
             return;
@@ -973,9 +997,9 @@ class HomeController extends GetxController {
         } else if (pickupAddress.value.isEmpty) {
           final dynamicFallback =
               currentAddress.value.isNotEmpty &&
-                      !currentAddress.value.startsWith('Enable GOOGLE_')
-                  ? currentAddress.value
-                  : 'Current Location';
+                  !currentAddress.value.startsWith('Enable GOOGLE_')
+              ? currentAddress.value
+              : 'Current Location';
           _setPickupAddressDetails(dynamicFallback);
         }
 
@@ -1052,7 +1076,8 @@ class HomeController extends GetxController {
         activeRide.value = null;
 
         final arguments = Get.arguments;
-        final fromActiveRide = arguments is Map && arguments['from_active_ride'] == true;
+        final fromActiveRide =
+            arguments is Map && arguments['from_active_ride'] == true;
 
         if (status == 'completed' && !fromActiveRide) {
           final bookingArgs = <String, dynamic>{
@@ -1069,7 +1094,8 @@ class HomeController extends GetxController {
       await _socketService.ensureConnected();
 
       final arguments = Get.arguments;
-      final fromActiveRide = arguments is Map && arguments['from_active_ride'] == true;
+      final fromActiveRide =
+          arguments is Map && arguments['from_active_ride'] == true;
 
       if (fromActiveRide) {
         return;
@@ -1084,7 +1110,9 @@ class HomeController extends GetxController {
           'vehicle_type': booking.categoryName,
         };
         _redirectToRide(RouteNames.findingDriver, bookingArgs);
-      } else if (status == 'accepted' || status == 'arrived' || status == 'started') {
+      } else if (status == 'accepted' ||
+          status == 'arrived' ||
+          status == 'started') {
         _clearPendingRideState();
         final bookingArgs = <String, dynamic>{
           'booking_no': booking.bookingNo,
@@ -1382,7 +1410,8 @@ class HomeController extends GetxController {
       const earthRadiusKm = 6371.0;
       final dLat = (target.latitude - current.latitude) * math.pi / 180.0;
       final dLng = (target.longitude - current.longitude) * math.pi / 180.0;
-      final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+      final a =
+          math.sin(dLat / 2) * math.sin(dLat / 2) +
           math.cos(current.latitude * math.pi / 180.0) *
               math.cos(target.latitude * math.pi / 180.0) *
               math.sin(dLng / 2) *
@@ -1422,12 +1451,16 @@ class HomeController extends GetxController {
 
       if (selectedVehicle.value != null) {
         final currentId = selectedVehicle.value!.id;
-        final updatedSelected = mapped.firstWhereOrNull((v) => v.id == currentId);
+        final updatedSelected = mapped.firstWhereOrNull(
+          (v) => v.id == currentId,
+        );
         if (updatedSelected != null) {
           selectedVehicle.value = updatedSelected;
           if (selectedSubCategory.value != null) {
             final subId = selectedSubCategory.value!.id;
-            final updatedSub = updatedSelected.subCategories.firstWhereOrNull((s) => s.id == subId);
+            final updatedSub = updatedSelected.subCategories.firstWhereOrNull(
+              (s) => s.id == subId,
+            );
             if (updatedSub != null) {
               selectedSubCategory.value = updatedSub;
             }
@@ -1488,18 +1521,15 @@ class HomeController extends GetxController {
       _updateMarkers();
       return;
     }
-
-    selectedVehicle.value = vehicle;
-    if (vehicle.subCategories.isNotEmpty) {
-      selectedSubCategory.value = vehicle.subCategories.first;
-    } else {
-      selectedSubCategory.value = null;
-    }
-    unawaited(getVehicleType());
-    unawaited(fetchHomeNearbyVehicles());
+    _handleCategorySelection(vehicle);
   }
 
   void selectVehicle(VehicleOption vehicle) {
+    if (selectedVehicle.value?.id == vehicle.id) return;
+    _handleCategorySelection(vehicle);
+  }
+
+  void _handleCategorySelection(VehicleOption vehicle) {
     selectedVehicle.value = vehicle;
     if (vehicle.subCategories.isNotEmpty) {
       selectedSubCategory.value = vehicle.subCategories.first;
@@ -1508,7 +1538,70 @@ class HomeController extends GetxController {
     }
     unawaited(getVehicleType());
     unawaited(fetchHomeNearbyVehicles());
+
+    if (!vehicle.dropLocationRequired) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = Get.context;
+        if (ctx != null) {
+          showDialog<void>(
+            context: ctx,
+            builder: (context) => AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Text(
+                '${vehicle.label} Selected',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1A1A2E),
+                ),
+              ),
+              content: const Text(
+                'This service category does not require a destination. You can optionally keep your destination or clear it if you want the driver to follow your instructions after pickup.',
+                style: TextStyle(
+                  color: Color(0xFFB0B3C1),
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                ),
+              ),
+              actions: [
+                if (droplocation.value != null)
+                  TextButton(
+                    onPressed: () {
+                      droplocation.value = null;
+                      dropAddress.value = '';
+                      Navigator.of(context).pop();
+                      unawaited(getVehicleType());
+                      _updateMarkers();
+                    },
+                    child: const Text(
+                      'Clear Drop Location',
+                      style: TextStyle(
+                        color: Color(0xFFE53935),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A1A2E),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text('Got it'),
+                ),
+              ],
+            ),
+          );
+        }
+      });
+    }
   }
+
 
   VehicleOption _mapVehicleType(
     ApiVehicleType vehicle, {
@@ -1541,6 +1634,7 @@ class HomeController extends GetxController {
               eta: subCategory.eta,
               seats: subCategory.seats,
               estimatedFare: subCategory.estimatedFare ?? subCategory.price,
+              dropLocationRequired: subCategory.dropLocationRequired,
             ),
           )
           .toList(),
