@@ -51,10 +51,12 @@ dependencies:
   flutter_launcher_icons: ^0.14.4
   geolocator: ^14.0.2
   url_launcher: ^6.2.0
-  firebase_core: ^4.12.1
+  firebase_core: ^4.15.0
   firebase_messaging: ^16.4.3
   flutter_html: ^3.0.0
   uuid: ^4.5.1
+  firebase_database: ^12.6.0
+  firebase_auth: ^6.7.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

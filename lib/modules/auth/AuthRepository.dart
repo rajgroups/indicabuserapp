@@ -40,4 +40,21 @@ class AuthRepository {
   Future<dynamic> logout() async {
     return await _client.post(ApiEndpoints.logout);
   }
+
+  Future<String?> fetchFirebaseToken() async {
+    try {
+      final response = await _client.get(ApiEndpoints.firebaseToken);
+      var payload = response.data;
+      if (payload is Map<String, dynamic> && payload['status'] == true) {
+        final data = payload['data'];
+        if (data is Map<String, dynamic>) {
+          return data['token']?.toString();
+        }
+      }
+      return null;
+    } catch (e) {
+      print('fetchFirebaseToken error: $e');
+      return null;
+    }
+  }
 }

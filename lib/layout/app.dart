@@ -12,6 +12,7 @@ import '../core/services/StorageService.dart';
 import '../core/repository/AppUpdateRepository.dart';
 import '../shared/widgets/app_update_dialog.dart';
 import '../core/theme/theme.dart';
+import '../modules/auth/AuthService.dart';
 
 import '../modules/splash/SplashScreen.dart';
 import '../shared/widgets/loader.dart';
@@ -89,6 +90,7 @@ class _AuthGateState extends State<AuthGate> {
 
     if (token != null && token.isNotEmpty) {
       _client.setTokens(token);
+      AuthService().initFirebase();
       Get.offAllNamed(RouteNames.home);
       return;
     }

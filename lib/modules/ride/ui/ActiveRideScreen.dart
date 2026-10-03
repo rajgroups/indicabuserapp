@@ -9,8 +9,8 @@ import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:indicab/core/config/Config.dart';
 import 'package:indicab/core/services/SocketService.dart';
-import 'package:indicab/core/services/AppConfigService.dart';
 import 'package:indicab/core/services/DriverMarkerAnimator.dart';
+import 'package:indicab/core/services/FirebaseLocationService.dart';
 
 import 'package:indicab/core/constants/Colors.dart';
 import 'package:indicab/core/network/client.dart';
@@ -49,6 +49,13 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   bool _arrivedSheetShown = false;
   bool _isFetchingBooking = false;
   String? _lastBookingSnapshot;
+
+  // Stale & Fallback State
+  DateTime? _lastFirebaseUpdate;
+  Timer? _staleCheckTimer;
+  Timer? _fallbackTimer;
+  static const int gpsStaleAfterSeconds = 15;
+  static const int fallbackIntervalSeconds = 30;
 
   // ETA info from the local calculation
   String _etaDistance = '';
@@ -204,31 +211,71 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
 
     // Subscribe to WebSocket events
     final socketService = Get.find<SocketService>();
-    socketService.on('driver_location_update', _onDriverLocationUpdate);
     socketService.on('booking_status', _onBookingStatusUpdate);
 
-    _startEconomyPollingIfNeeded();
+    if (_effectiveBookingNo != null && _bookingData?.id != null) {
+      FirebaseLocationService().listenToActiveRide(_bookingData!.id.toString(), _onFirebaseLocationUpdate);
+    }
+    
+    _startStaleMonitor();
   }
 
-  Timer? _economyPollingTimer;
+  void _startStaleMonitor() {
+    _staleCheckTimer?.cancel();
+    _staleCheckTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_lastFirebaseUpdate == null) return;
+      
+      final elapsed = DateTime.now().difference(_lastFirebaseUpdate!).inSeconds;
 
-  void _startEconomyPollingIfNeeded() {
-    if (Get.isRegistered<AppConfigService>() &&
-        Get.find<AppConfigService>().isEconomyMode) {
-      _economyPollingTimer?.cancel();
-      _economyPollingTimer = Timer.periodic(const Duration(seconds: 10), (
-        timer,
-      ) {
-        _fetchBookingDetails(silent: true);
-      });
-    }
+      if (elapsed > gpsStaleAfterSeconds) {
+        _startFallback();
+      } else {
+        _stopFallback();
+      }
+    });
+  }
+
+  void _startFallback() {
+    if (_fallbackTimer != null && _fallbackTimer!.isActive) return;
+    
+    // Immediate fallback request once it becomes stale
+    _fetchBookingDetails(silent: true);
+    
+    // Cooldown loop
+    _fallbackTimer = Timer.periodic(const Duration(seconds: fallbackIntervalSeconds), (timer) {
+      _fetchBookingDetails(silent: true);
+    });
+  }
+
+  void _stopFallback() {
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
+  }
+
+  void _onFirebaseLocationUpdate(Map<String, dynamic> data) {
+    if (!mounted) return;
+    
+    _lastFirebaseUpdate = DateTime.now();
+    _stopFallback();
+
+    final lat = double.tryParse(data['latitude']?.toString() ?? '');
+    final lng = double.tryParse(data['longitude']?.toString() ?? '');
+    if (lat == null || lng == null || (lat == 0 && lng == 0)) return;
+
+    final newPos = LatLng(lat, lng);
+    final bearing = double.tryParse(data['heading']?.toString() ?? '');
+
+    _driverPosition = newPos;
+    _driverAnimator.animateTo(newPos, bearing: bearing);
+    _updateLiveTrackingRoute(newPos);
   }
 
   @override
   void dispose() {
-    _economyPollingTimer?.cancel();
+    _staleCheckTimer?.cancel();
+    _stopFallback();
+    FirebaseLocationService().stopListening();
     final socketService = Get.find<SocketService>();
-    socketService.off('driver_location_update', _onDriverLocationUpdate);
     socketService.off('booking_status', _onBookingStatusUpdate);
     _driverAnimator.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -418,30 +465,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
     return earthRadius * 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
   }
 
-  void _onDriverLocationUpdate(dynamic data) {
-    if (data is! Map<String, dynamic> || !mounted) return;
-
-    final incomingNo = data['booking_no']?.toString();
-    final activeNo = widget.bookingNo ?? _bookingData?.bookingNo;
-    if (incomingNo != null &&
-        incomingNo.isNotEmpty &&
-        activeNo != null &&
-        activeNo.isNotEmpty &&
-        incomingNo != activeNo) {
-      return;
-    }
-
-    final lat = double.tryParse(data['latitude']?.toString() ?? '');
-    final lng = double.tryParse(data['longitude']?.toString() ?? '');
-    if (lat == null || lng == null || (lat == 0 && lng == 0)) return;
-
-    final newPos = LatLng(lat, lng);
-    final bearing = double.tryParse(data['bearing']?.toString() ?? '');
-
-    _driverPosition = newPos;
-    _driverAnimator.animateTo(newPos, bearing: bearing);
-    _updateLiveTrackingRoute(newPos);
-  }
+  // Removed Socket Location Handler
 
   void _updateLiveTrackingRoute(LatLng newPos) {
     final status = _bookingData?.status?.trim().toLowerCase() ?? '';

@@ -5,6 +5,7 @@ import 'package:indicab/core/services/SecureStorageService.dart';
 import 'package:indicab/core/services/NotificationService.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:indicab/core/services/SocketService.dart';
+import 'package:indicab/core/services/FirebaseLocationService.dart';
 
 import 'AuthRepository.dart';
 import 'models/login_request.dart';
@@ -37,8 +38,17 @@ class AuthService {
     if (Get.isRegistered<NotificationService>()) {
       await Get.find<NotificationService>().sendTokenIfAuthenticated();
     }
+    
+    await initFirebase();
 
     return response;
+  }
+
+  Future<void> initFirebase() async {
+    final firebaseToken = await _repo.fetchFirebaseToken();
+    if (firebaseToken != null) {
+      await FirebaseLocationService().authenticateWithCustomToken(firebaseToken);
+    }
   }
 
   Future socialLogin(String provider, String token) async {
@@ -54,6 +64,7 @@ class AuthService {
       if (Get.isRegistered<NotificationService>()) {
         await Get.find<NotificationService>().sendTokenIfAuthenticated();
       }
+      await initFirebase();
     }
 
     return response;
