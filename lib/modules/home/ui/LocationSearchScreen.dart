@@ -19,18 +19,29 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      controller.exitLocationSelection();
-      controller.updateRoutePolyline();
-      // If both locations are set, zoom map to fit both markers.
-      controller.focusMapOnLocations();
+      // If both locations are already set when this screen opens, draw the
+      // existing route on the background map with a loading indicator.
+      controller.refreshRouteDisplay();
     });
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   void _navigateToMapPicker({required String target}) {
+    // When PickLocationMapScreen pops after the user confirms, polylines are
+    // already set (exitLocationSelection awaits the API). We just refresh
+    // the display and re-pan the camera here.
     Get.toNamed(
       RouteNames.pickLocationMap,
       arguments: <String, dynamic>{'target': target},
-    );
+    )?.then((_) {
+      if (mounted) {
+        controller.refreshRouteDisplay();
+      }
+    });
   }
 
   @override
@@ -49,14 +60,60 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
                   controller.pickuplocation.value ?? controller.pickupPoint.value,
               dropLocation: controller.droplocation.value,
               onMapCreated: controller.onMapCreated,
-              markers: controller.markers,
-              polylines: controller.polylines,
+              markers: controller.markers.toSet(),
+              polylines: controller.polylines.toSet(),
               scrollGesturesEnabled: true,
               zoomGesturesEnabled: true,
               rotateGesturesEnabled: true,
               tiltGesturesEnabled: true,
             ),
           ),
+
+          // ── Route-loading overlay ────────────────────────────────────────
+          Obx(() {
+            if (!controller.isRouteLoading.value) return const SizedBox.shrink();
+            return Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  child: const Center(
+                    child: Card(
+                      color: Colors.white,
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Color(0xFF1A1A2E),
+                              ),
+                            ),
+                            SizedBox(width: 14),
+                            Text(
+                              'Finding route…',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1A1A2E),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
 
           // ── Top card: header + Rapido-style route selector ─────────────
           Positioned(
@@ -87,7 +144,8 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
                       _CircleIconButton(
                         icon: Icons.arrow_back_rounded,
                         onTap: () {
-                          controller.exitLocationSelection();
+                          // Back arrow on this screen: just reset map UI state.
+                          controller.cancelLocationSelection();
                           Get.back();
                         },
                       ),
@@ -264,11 +322,13 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
                     ],
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          controller.exitLocationSelection();
-                          Get.back();
-                        },
+                      child: Obx(() => ElevatedButton(
+                        onPressed: controller.isRouteLoading.value
+                            ? null
+                            : () async {
+                                await controller.exitLocationSelection();
+                                Get.back();
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1A1A2E),
                           foregroundColor: Colors.white,
@@ -278,15 +338,24 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: const Text(
-                          'Confirm Locations',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
+                        child: controller.isRouteLoading.value
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Confirm Locations',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                      )),
                     ),
                   ],
                 ),

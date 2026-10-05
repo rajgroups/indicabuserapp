@@ -41,7 +41,7 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
       if (!_isPickup && _stopIndex > 0) {
         controller.setActiveDropStop(_stopIndex);
       }
-      controller.isMapViewMode.value = true;
+      controller.enterLocationSelection();
     });
   }
 
@@ -70,7 +70,8 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) controller.exitLocationSelection();
+        // Back-swipe / hardware back: just reset UI state; do NOT call Directions.
+        if (didPop) controller.cancelLocationSelection();
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
@@ -86,8 +87,8 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
                 onCameraMove: controller.onLocationMapCameraMove,
                 onCameraMoveStarted: controller.onCameraMoveStarted,
                 onCameraIdle: controller.onLocationMapCameraIdle,
-                markers: controller.markers,
-                polylines: controller.polylines,
+                markers: controller.markers.toSet(),
+                polylines: controller.polylines.toSet(),
                 scrollGesturesEnabled: true,
                 zoomGesturesEnabled: true,
                 rotateGesturesEnabled: true,
@@ -301,7 +302,8 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
                         _CircleButton(
                           icon: Icons.arrow_back_rounded,
                           onTap: () {
-                            controller.exitLocationSelection();
+                            // Manual back arrow: just reset UI state; no Directions.
+                            controller.cancelLocationSelection();
                             Get.back();
                           },
                         ),
@@ -415,7 +417,7 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
                           // not at the midpoint of pickup+drop.
                           unawaited(setFuture.then((_) async {
                             await controller.refocusOnSelectedLocation();
-                            controller.isMapViewMode.value = true;
+                            controller.enterLocationSelection();
                           }));
                         },
                       ),
@@ -458,11 +460,13 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
               bottom: bottomPadding + 16,
               left: 16,
               right: 16,
-              child: ElevatedButton(
-                onPressed: () {
-                  controller.exitLocationSelection();
-                  Get.back();
-                },
+              child: Obx(() => ElevatedButton(
+                onPressed: controller.isRouteLoading.value
+                    ? null
+                    : () async {
+                        await controller.exitLocationSelection();
+                        Get.back();
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _isPickup
                       ? const Color(0xFF00C853)
@@ -474,15 +478,24 @@ class _PickLocationMapScreenState extends State<PickLocationMapScreen> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: Text(
-                  confirmLabel,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ),
+                child: controller.isRouteLoading.value
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        confirmLabel,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+              )),
             ),
           ],
         ),

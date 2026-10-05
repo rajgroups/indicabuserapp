@@ -114,7 +114,7 @@ class VehicleMarkerService extends GetxService {
   void clear() => markers.clear();
 
   // ── Load a network image URL → BitmapDescriptor ────────────────────────────
-  Future<BitmapDescriptor> loadNetworkIcon(String url, {int size = 80}) async {
+  Future<BitmapDescriptor> loadNetworkIcon(String url, {int size = 50}) async {
     if (_iconCache.containsKey(url)) return _iconCache[url]!;
 
     try {

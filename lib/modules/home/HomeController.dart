@@ -65,6 +65,7 @@ class HomeController extends GetxController {
   final VehicleCategoryService _vehicleService = VehicleCategoryService();
 
   final RxBool isLoading = false.obs;
+  final RxBool isRouteLoading = false.obs;
   final RxBool isAddressLoading = false.obs;
   final RxList<VehicleOption> vehicleTypes = <VehicleOption>[].obs;
   final Rxn<VehicleOption> selectedVehicle = Rxn<VehicleOption>();
@@ -531,10 +532,10 @@ class HomeController extends GetxController {
         : place.description;
     pickupCoordinates.value = _formatCoordinates(latlng);
     originController.text = pickupAddress.value;
+    polylines.clear();
+    polylines.refresh();
     _updateMarkers();
-    await updateRoutePolyline(forceRefresh: true);
     await _focusMapOnSelectedLocations();
-    await getVehicleType();
   }
 
   Future<void> setDrop(dynamic place) async {
@@ -572,10 +573,10 @@ class HomeController extends GetxController {
       stop.controller.text = addr;
     }
 
+    polylines.clear();
+    polylines.refresh();
     _updateMarkers();
-    await updateRoutePolyline(forceRefresh: true);
     await _focusMapOnSelectedLocations();
-    await getVehicleType();
   }
 
   void clearPickup() {
@@ -584,9 +585,9 @@ class HomeController extends GetxController {
     pickupAddress.value = '';
     pickupCoordinates.value = '';
     originController.clear();
+    polylines.clear();
+    polylines.refresh();
     _updateMarkers();
-    updateRoutePolyline(forceRefresh: true);
-    getVehicleType();
   }
 
   void clearDrop() {
@@ -602,9 +603,9 @@ class HomeController extends GetxController {
       stop.placeName.value = '';
       stop.controller.clear();
     }
+    polylines.clear();
+    polylines.refresh();
     _updateMarkers();
-    updateRoutePolyline(forceRefresh: true);
-    getVehicleType();
   }
 
   LatLng _effectivePickupPoint() {
@@ -705,6 +706,9 @@ class HomeController extends GetxController {
         );
         if (routeResult.points.isNotEmpty) {
           allRoutePoints.addAll(routeResult.points);
+          debugPrint('[DIRECTIONS] Distance: ${routeResult.distanceText}');
+          debugPrint('[DIRECTIONS] Duration: ${routeResult.durationText}');
+          debugPrint('[DIRECTIONS] Polyline points: ${routeResult.points.length}');
         } else {
           allRoutePoints.add(currentStart);
           allRoutePoints.add(target);
@@ -1198,7 +1202,36 @@ class HomeController extends GetxController {
   /// request the map to zoom-to-fit both pickup + drop markers.
   Future<void> focusMapOnLocations() => _focusMapOnSelectedLocations();
 
-  void exitLocationSelection() {
+  /// Draws the current route with a loading indicator.
+  /// Called by LocationSearchScreen when it needs to show the route on its
+  /// background map (on open or on return from PickLocationMapScreen).
+  Future<void> refreshRouteDisplay() async {
+    if (pickuplocation.value == null && pickupPoint.value == defaultPickup) {
+      return; // GPS not ready yet
+    }
+    if (droplocation.value == null) return; // no destination yet
+
+    isRouteLoading.value = true;
+    try {
+      await updateRoutePolyline();
+    } finally {
+      isRouteLoading.value = false;
+    }
+    unawaited(_focusMapOnSelectedLocations());
+  }
+
+  void enterLocationSelection() {
+    debugPrint('[LOCATION_SESSION] NEW SESSION');
+    isMapViewMode.value = true;
+    // Clear stale visual polyline so the old route is never shown during editing.
+    polylines.clear();
+    polylines.refresh();
+    // Bust the PolylineService cache so the next Confirm always fires a real
+    // Directions API call regardless of the 30-second same-route cooldown.
+    _polylineService.clearCache();
+  }
+
+  Future<void> exitLocationSelection() async {
     isMapViewMode.value = false;
     isMapDragging.value = false;
     isReverseGeocodingCenter.value = false;
@@ -1206,10 +1239,45 @@ class HomeController extends GetxController {
     _dragPreviewPoint = null;
     _dragPreviewTarget = null;
     _dragRouteDebounce?.cancel();
-    // Rebuild markers and route so the parent screen (LocationSearchScreen /
-    // HomeScreen) immediately reflects the confirmed location.
+    
+    // Rebuild markers so the parent screen immediately reflects the confirmed
+    // location without waiting for the Directions API.
     _updateMarkers();
-    unawaited(updateRoutePolyline());
+
+    final pickup = pickuplocation.value ?? pickupPoint.value;
+    final drop = droplocation.value;
+    debugPrint('[CONFIRM] Origin: ${pickup.latitude}, ${pickup.longitude}');
+    debugPrint('[CONFIRM] Destination: ${drop?.latitude}, ${drop?.longitude}');
+
+    if (drop == null) {
+      // No drop yet — nothing to route.
+      return;
+    }
+
+    isRouteLoading.value = true;
+    try {
+      debugPrint('[DIRECTIONS] REQUEST');
+      debugPrint('[DIRECTIONS] Origin: ${pickup.latitude}, ${pickup.longitude}');
+      debugPrint('[DIRECTIONS] Destination: ${drop.latitude}, ${drop.longitude}');
+      await updateRoutePolyline(forceRefresh: true);
+      debugPrint('[DIRECTIONS] SUCCESS');
+      await getVehicleType();
+    } finally {
+      isRouteLoading.value = false;
+    }
+  }
+
+  /// Called when the user cancels/backs out of the location-selection screen
+  /// without confirming. Resets UI state only — no Directions API call.
+  void cancelLocationSelection() {
+    isMapViewMode.value = false;
+    isMapDragging.value = false;
+    isReverseGeocodingCenter.value = false;
+    lastCameraPosition = null;
+    _dragPreviewPoint = null;
+    _dragPreviewTarget = null;
+    _dragRouteDebounce?.cancel();
+    _updateMarkers();
   }
 
   void onCameraMoveStarted() {
@@ -1279,12 +1347,13 @@ class HomeController extends GetxController {
     final int commitVersion = ++_locationCommitVersion;
     isReverseGeocodingCenter.value = true;
 
-    // Commit the dragged point immediately so the marker and route stay in sync
+    // Commit the dragged point immediately so the marker stays in sync
     // with the center pin, then enrich the address once geocoding returns.
     if (locationTarget.value == LocationSelectionTarget.pickup) {
       pickupPoint.value = targetPoint;
       pickuplocation.value = targetPoint;
       pickupCoordinates.value = _formatCoordinates(targetPoint);
+      debugPrint('[LOCATION] Origin changed: ${targetPoint.latitude}, ${targetPoint.longitude}');
     } else {
       _ensureInitialDropStop();
       final idx = activeDropStopIndex.value < dropStops.length
@@ -1300,9 +1369,10 @@ class HomeController extends GetxController {
       if (currentAddressText.isNotEmpty) {
         dropAddress.value = currentAddressText;
       }
+      droplocation.value = targetPoint;
+      debugPrint('[LOCATION] Destination changed: ${targetPoint.latitude}, ${targetPoint.longitude}');
     }
     _updateMarkers();
-    await updateRoutePolyline(forceRefresh: true);
 
     try {
       final address = await _polylineService.reverseGeocode(
@@ -1340,8 +1410,6 @@ class HomeController extends GetxController {
       }
 
       _updateMarkers();
-      await updateRoutePolyline();
-      await getVehicleType();
     } catch (error) {
       debugPrint('HomeController.onLocationMapCameraIdle error: $error');
     } finally {

@@ -112,7 +112,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
         if (bytes.isNotEmpty) {
           final codec = await ui.instantiateImageCodec(
             Uint8List.fromList(bytes),
-            targetWidth: 110,
+            targetWidth: 60,
           );
           final frame = await codec.getNextFrame();
           final byteData = await frame.image.toByteData(

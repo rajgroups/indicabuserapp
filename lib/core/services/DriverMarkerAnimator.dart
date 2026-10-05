@@ -28,6 +28,8 @@ class DriverMarkerAnimator {
   LatLng _startPosition = const LatLng(0, 0);
   LatLng _endPosition = const LatLng(0, 0);
   LatLng _currentPosition = const LatLng(0, 0);
+  double _startBearing = 0;
+  double _endBearing = 0;
   double _currentBearing = 0;
   bool _hasInitialPosition = false;
 
@@ -53,13 +55,18 @@ class DriverMarkerAnimator {
       _startPosition = newPosition;
       _endPosition = newPosition;
       _currentPosition = newPosition;
-      if (bearing != null) _currentBearing = bearing;
+      if (bearing != null) {
+        _startBearing = bearing;
+        _endBearing = bearing;
+        _currentBearing = bearing;
+      }
       onUpdate?.call(_currentPosition, _currentBearing);
       return;
     }
 
     // Compute bearing from current position to new position
-    _currentBearing = bearing ?? _computeBearing(_currentPosition, newPosition);
+    _startBearing = _currentBearing;
+    _endBearing = bearing ?? _computeBearing(_currentPosition, newPosition);
 
     _startPosition = _currentPosition;
     _endPosition = newPosition;
@@ -75,6 +82,11 @@ class DriverMarkerAnimator {
       _lerpDouble(_startPosition.latitude, _endPosition.latitude, t),
       _lerpDouble(_startPosition.longitude, _endPosition.longitude, t),
     );
+    
+    // Shortest path interpolation for bearing
+    double diff = (_endBearing - _startBearing + 180) % 360 - 180;
+    _currentBearing = (_startBearing + diff * t) % 360;
+
     onUpdate?.call(_currentPosition, _currentBearing);
   }
 
